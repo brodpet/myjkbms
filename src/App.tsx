@@ -221,7 +221,7 @@ export default function App() {
       ))}
 
       <div style={{ textAlign: 'center', fontSize: 9, color: '#1a2a3a', letterSpacing: 2, padding: '16px 0' }}>
-        UPDATES EVERY 10s
+        UPDATES EVERY 5s
       </div>
     </div>
   )
