@@ -127,10 +127,10 @@ function PackCard({ name, data }: { name: string; data: PackData | undefined }) 
               width: '100%',
             }}
           >
-            {expanded ? 'HIDE CELLS' : 'SHOW 8 CELLS'}
+            {expanded ? 'HIDE CELLS' : `SHOW ${data.cells.filter(v => v > 0).length} CELLS`}
           </button>
 
-          {expanded && <CellGrid cells={data.cells.slice(0, 8)} />}
+          {expanded && <CellGrid cells={data.cells.filter(v => v > 0)} />}
         </>
       ) : (
         <div style={{ color: '#2a4a6a', fontSize: 12, padding: '12px 0', textAlign: 'center' }}>
@@ -221,7 +221,7 @@ export default function App() {
       ))}
 
       <div style={{ textAlign: 'center', fontSize: 9, color: '#1a2a3a', letterSpacing: 2, padding: '16px 0' }}>
-        UPDATES EVERY 5s
+        UPDATES EVERY 10s
       </div>
     </div>
   )
