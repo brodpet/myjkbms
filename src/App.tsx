@@ -127,10 +127,10 @@ function PackCard({ name, data }: { name: string; data: PackData | undefined }) 
               width: '100%',
             }}
           >
-            {expanded ? 'HIDE CELLS' : `SHOW ${data.cells.length} CELLS`}
+            {expanded ? 'HIDE CELLS' : 'SHOW 8 CELLS'}
           </button>
 
-          {expanded && <CellGrid cells={data.cells} />}
+          {expanded && <CellGrid cells={data.cells.slice(0, 8)} />}
         </>
       ) : (
         <div style={{ color: '#2a4a6a', fontSize: 12, padding: '12px 0', textAlign: 'center' }}>
