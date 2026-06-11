@@ -4,6 +4,8 @@ import mqtt from 'mqtt'
 const BROKER = 'wss://02d2caf5b468442a8c326f842428590f.s1.eu.hivemq.cloud:8884/mqtt'
 const USERNAME = 'brodpet1'
 const PASSWORD = 'Brodpet18'
+const EXPECTED_UPDATE_SECONDS = 10
+const STALE_SECONDS = 120
 const PACKS = ['CALB-new314ah', 'CALB-314ah', 'Cornex-280ah']
 const PACK_LABELS: Record<string, string> = {
   'CALB-new314ah': 'CALB New 314Ah',
@@ -119,10 +121,18 @@ function CellGrid({ cells }: { cells: number[] }) {
   )
 }
 
-function PackCard({ name, data }: { name: string; data: PackData | undefined }) {
+function PackCard({ name, data, now }: { name: string; data: PackData | undefined; now: number }) {
   const [expanded, setExpanded] = useState(false)
-  const age = data ? Math.floor((Date.now() - data.updatedAt) / 1000) : null
-  const stale = age !== null && age > 30
+  const age = data ? Math.floor((now - data.updatedAt) / 1000) : null
+  const stale = age !== null && age > STALE_SECONDS
+  const countdown = age !== null ? Math.max(0, EXPECTED_UPDATE_SECONDS - age) : null
+  const statusText = data
+    ? stale
+      ? `STALE ${age}s`
+      : countdown
+        ? `NEXT ${countdown}s`
+        : `LAST ${age}s`
+    : 'WAITING'
 
   return (
     <div style={{
@@ -137,7 +147,7 @@ function PackCard({ name, data }: { name: string; data: PackData | undefined }) 
           {PACK_LABELS[name] ?? name}
         </div>
         <div style={{ fontSize: 10, color: stale ? '#ff4444' : data ? '#00ff99' : '#4a6a8a', letterSpacing: 1 }}>
-          {data ? (stale ? `STALE ${age}s` : `${age}s ago`) : 'WAITING'}
+          {statusText}
         </div>
       </div>
 
@@ -206,7 +216,13 @@ function Stat({ label, value, warn }: { label: string; value: string; warn?: boo
 export default function App() {
   const [packs, setPacks] = useState<PackMap>({})
   const [status, setStatus] = useState('Connecting...')
+  const [now, setNow] = useState(Date.now())
   const clientRef = useRef<mqtt.MqttClient | null>(null)
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     const client = mqtt.connect(BROKER, {
@@ -281,7 +297,7 @@ export default function App() {
       </div>
 
       {PACKS.map(name => (
-        <PackCard key={name} name={name} data={packs[name]} />
+        <PackCard key={name} name={name} data={packs[name]} now={now} />
       ))}
 
       <div style={{ textAlign: 'center', fontSize: 9, color: '#1a2a3a', letterSpacing: 2, padding: '16px 0' }}>
