@@ -10,6 +10,24 @@ const PACK_LABELS: Record<string, string> = {
   'CALB-314ah': 'CALB 314Ah',
   'Cornex-280ah': 'Cornex 280Ah',
 }
+const SENSOR_PACKS: Record<string, string> = {
+  'calb-new314ah': 'CALB-new314ah',
+  calb_314ah: 'CALB-314ah',
+  cornex_280ah: 'Cornex-280ah',
+}
+const SENSOR_FIELDS: Record<string, keyof Omit<PackData, 'cells' | 'updatedAt'>> = {
+  soc: 'soc',
+  total_voltage: 'voltage',
+  current: 'current',
+  power: 'power',
+  temperature_1: 'temp1',
+  temperature_2: 'temp2',
+  mosfet_temperature: 'mosfet_temp',
+  capacity_remaining: 'capacity',
+  min_cell_voltage: 'min_cell',
+  max_cell_voltage: 'max_cell',
+  delta_cell_voltage: 'delta_cell',
+}
 
 interface PackData {
   soc: number
@@ -28,6 +46,41 @@ interface PackData {
 }
 
 type PackMap = Record<string, PackData>
+
+function emptyPack(): PackData {
+  return {
+    soc: 0,
+    voltage: 0,
+    current: 0,
+    power: 0,
+    temp1: 0,
+    temp2: 0,
+    mosfet_temp: 0,
+    capacity: 0,
+    min_cell: 0,
+    max_cell: 0,
+    delta_cell: 0,
+    cells: Array(16).fill(0),
+    updatedAt: Date.now(),
+  }
+}
+
+function parseSensorTopic(topic: string): { pack: string; field: string; cell?: number } | null {
+  if (!topic.startsWith('jk-bms/sensor/') || !topic.endsWith('/state')) return null
+
+  const entity = topic.slice('jk-bms/sensor/'.length, -'/state'.length)
+  for (const [slug, pack] of Object.entries(SENSOR_PACKS)) {
+    if (!entity.startsWith(`${slug}_`)) continue
+
+    const sensor = entity.slice(slug.length + 1)
+    const cell = sensor.match(/^cell_(\d+)$/)
+    if (cell) return { pack, field: 'cell', cell: Number(cell[1]) - 1 }
+
+    return { pack, field: sensor }
+  }
+
+  return null
+}
 
 function SocBar({ pct }: { pct: number }) {
   const color = pct > 50 ? '#00ff99' : pct > 20 ? '#f9a825' : '#ff4444'
@@ -165,7 +218,7 @@ export default function App() {
 
     client.on('connect', () => {
       setStatus('Connected')
-      PACKS.forEach(p => client.subscribe(`jkbms/${p}`))
+      client.subscribe('jk-bms/sensor/#')
     })
 
     client.on('disconnect', () => setStatus('Disconnected'))
@@ -173,11 +226,22 @@ export default function App() {
     client.on('reconnect', () => setStatus('Reconnecting...'))
 
     client.on('message', (topic, payload) => {
-      const pack = topic.replace('jkbms/', '')
-      try {
-        const data = JSON.parse(payload.toString())
-        setPacks(prev => ({ ...prev, [pack]: { ...data, updatedAt: Date.now() } }))
-      } catch {}
+      const parsed = parseSensorTopic(topic)
+      const value = Number(payload.toString())
+      if (!parsed?.pack || Number.isNaN(value)) return
+
+      setPacks(prev => {
+        const next = prev[parsed.pack] ? { ...prev[parsed.pack], cells: [...prev[parsed.pack].cells] } : emptyPack()
+        if (parsed.field === 'cell' && parsed.cell !== undefined) {
+          next.cells[parsed.cell] = value
+        } else {
+          const key = SENSOR_FIELDS[parsed.field]
+          if (!key) return prev
+          next[key] = value
+        }
+        next.updatedAt = Date.now()
+        return { ...prev, [parsed.pack]: next }
+      })
     })
 
     return () => { client.end() }
