@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import mqtt from 'mqtt'
 
-const BROKER = 'wss://c3d042132d83410eacb912944246d4d7.s1.eu.hivemq.cloud:8884/mqtt'
-const USERNAME = 'brodpet'
+const BROKER = 'wss://02d2caf5b468442a8c326f842428590f.s1.eu.hivemq.cloud:8884/mqtt'
+const USERNAME = 'brodpet1'
 const PASSWORD = 'Brodpet18'
 const PACKS = ['CALB-new314ah', 'CALB-314ah', 'Cornex-280ah']
 const PACK_LABELS: Record<string, string> = {
