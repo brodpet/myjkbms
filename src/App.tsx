@@ -272,7 +272,7 @@ export default function App() {
     <div>
       <div style={{ textAlign: 'center', padding: '16px 0 20px' }}>
         <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 4, color: '#004488', marginBottom: 4 }}>
-          DONGJIN SOLAR
+          BRODPET SOLAR
         </div>
         <div style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: 3, color: '#00aaff' }}>
           JK BMS MONITOR
