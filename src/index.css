@@ -1,14 +1,23 @@
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #071018;
+}
 
 body {
-  background: #060d1a;
-  color: #d0e8ff;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  min-width: 320px;
   min-height: 100svh;
+  margin: 0;
+  color: #e6f4f1;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(56, 189, 248, 0.16), transparent 30rem),
+    radial-gradient(circle at 82% 8%, rgba(31, 230, 168, 0.12), transparent 28rem),
+    linear-gradient(180deg, #071018 0%, #08141e 44%, #050a10 100%);
+  font-family: Inter, Manrope, 'Segoe UI', system-ui, sans-serif;
 }
 
 #root {
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 16px;
+  min-height: 100svh;
 }
