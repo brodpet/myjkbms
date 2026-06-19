@@ -9,6 +9,7 @@ const EXPECTED_UPDATE_SECONDS = 10
 const STALE_SECONDS = 120
 const CELLS_PER_PACK = 8
 const TOTAL_BATTERY_CAPACITY_AH = 908
+const NOMINAL_BATTERY_VOLTAGE = 25.6
 const PACKS = ['CALB-new314ah', 'CALB-314ah', 'Cornex-280ah']
 const PACK_LABELS: Record<string, string> = {
   'CALB-new314ah': 'CALB New 314Ah',
@@ -224,15 +225,15 @@ function HeaderBar({ status, tone, now }: {
   )
 }
 
-function BatteryEstimate({ totalPower, remainingAh, voltage }: { totalPower: number; remainingAh: number; voltage: number | null }) {
+function BatteryEstimate({ totalPower, remainingAh }: { totalPower: number; remainingAh: number }) {
   const activePower = Math.abs(totalPower) > 50
-  const missingData = !activePower || !voltage || remainingAh <= 0
-  const remainingWh = remainingAh * (voltage ?? 0)
-  const fullWh = TOTAL_BATTERY_CAPACITY_AH * (voltage ?? 0)
-  const emptyWh = Math.max(0, remainingWh)
+  const missingData = !activePower || remainingAh <= 0
+  const remainingWh = remainingAh * NOMINAL_BATTERY_VOLTAGE
+  const fullWh = TOTAL_BATTERY_CAPACITY_AH * NOMINAL_BATTERY_VOLTAGE
+  const reserveWh = TOTAL_BATTERY_CAPACITY_AH * 0.2 * NOMINAL_BATTERY_VOLTAGE
   const chargeWh = Math.max(0, fullWh - remainingWh)
   const isCharging = totalPower > 50
-  const estimate = missingData ? null : isCharging ? chargeWh / totalPower : emptyWh / Math.abs(totalPower)
+  const estimate = missingData ? null : isCharging ? chargeWh / totalPower : Math.max(0, remainingWh - reserveWh) / Math.abs(totalPower)
 
   return (
     <div className="battery-estimate">
@@ -278,7 +279,7 @@ function BatteryDeck({ averageVoltage, totalCurrent, totalPower, remainingAh }: 
         </div>
       </div>
       <BatteryState totalPower={totalPower} />
-      <BatteryEstimate totalPower={totalPower} remainingAh={remainingAh} voltage={averageVoltage} />
+      <BatteryEstimate totalPower={totalPower} remainingAh={remainingAh} />
     </section>
   )
 }
@@ -611,4 +612,6 @@ export default function App() {
     </main>
   )
 }
+
+
 
