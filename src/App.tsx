@@ -271,7 +271,7 @@ export default function App() {
   return (
     <div>
       <div style={{ textAlign: 'center', padding: '16px 0 20px' }}>
-        <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 4, color: '#004488', marginBottom: 4 }}>
+        <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 4, color: '#00aa44', marginBottom: 4 }}>
           BRODPET SOLAR
         </div>
         <div style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: 3, color: '#00aaff' }}>
