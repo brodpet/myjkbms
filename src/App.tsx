@@ -243,6 +243,23 @@ function BatteryEstimate({ totalPower, remainingAh, voltage }: { totalPower: num
   )
 }
 
+function getBatteryState(totalPower: number) {
+  if (totalPower > 50) return { label: 'Charging', tone: 'good', helper: 'Battery bank receiving power' }
+  if (totalPower < -50) return { label: 'Discharging', tone: 'warning', helper: 'Battery bank supplying power' }
+  return { label: 'Idle', tone: 'muted', helper: 'Power flow near zero' }
+}
+
+function BatteryState({ totalPower }: { totalPower: number }) {
+  const state = getBatteryState(totalPower)
+
+  return (
+    <div className={`battery-state ${state.tone}`}>
+      <span>State</span>
+      <strong>{state.label}</strong>
+      <small>{state.helper}</small>
+    </div>
+  )
+}
 function BatteryDeck({ averageVoltage, totalCurrent, totalPower, remainingAh }: {
   averageVoltage: number | null
   totalCurrent: number
@@ -260,6 +277,7 @@ function BatteryDeck({ averageVoltage, totalCurrent, totalPower, remainingAh }: 
           <em>{averageVoltage !== null ? `${totalCurrent > 0 ? '+' : ''}${formatNumber(totalCurrent, 1)}A` : '--'} &nbsp; {totalPower > 0 ? '+' : ''}{formatNumber(totalPower)}W</em>
         </div>
       </div>
+      <BatteryState totalPower={totalPower} />
       <BatteryEstimate totalPower={totalPower} remainingAh={remainingAh} voltage={averageVoltage} />
     </section>
   )
@@ -593,3 +611,4 @@ export default function App() {
     </main>
   )
 }
+

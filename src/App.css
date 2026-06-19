@@ -183,6 +183,7 @@ button {
   width: min(520px, 100%);
 }
 
+.battery-state,
 .battery-estimate {
   display: grid;
   gap: 6px;
@@ -195,16 +196,20 @@ button {
     radial-gradient(circle at 100% 0%, rgba(53, 235, 134, 0.12), transparent 60%);
 }
 
+.battery-state span,
+.battery-state small,
 .battery-estimate span,
 .battery-estimate small {
   color: #a7b6c7;
 }
 
+.battery-state span,
 .battery-estimate span {
   font-size: 0.82rem;
   font-weight: 750;
 }
 
+.battery-state strong,
 .battery-estimate strong {
   color: #35eb86;
   font-family: 'JetBrains Mono', 'IBM Plex Mono', Consolas, monospace;
@@ -212,10 +217,22 @@ button {
   line-height: 1;
 }
 
+.battery-state small,
 .battery-estimate small {
   font-size: 0.78rem;
 }
 
+.battery-state.good strong {
+  color: #35eb86;
+}
+
+.battery-state.warning strong {
+  color: #ffcd4a;
+}
+
+.battery-state.muted strong {
+  color: #a7b6c7;
+}
 .flow-node small,
 .metric-tile span,
 .metric-tile small,
@@ -807,3 +824,5 @@ button:focus-visible {
     font-size: 2rem;
   }
 }
+
+
