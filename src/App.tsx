@@ -13,6 +13,7 @@ const NOMINAL_BATTERY_VOLTAGE = 25.6
 const WEATHER_LATITUDE = 12.0
 const WEATHER_LONGITUDE = 123.98333
 const WEATHER_LOCATION = 'Cataingan, Masbate'
+const WEATHER_REFRESH_MS = 5 * 60 * 1000
 const PACKS = ['CALB-new314ah', 'CALB-314ah', 'Cornex-280ah']
 const PACK_LABELS: Record<string, string> = {
   'CALB-new314ah': 'CALB New 314Ah',
@@ -348,6 +349,7 @@ function WeatherCard({ weather, status }: { weather: WeatherData | null; status:
         <strong>{getChargingWindow(weather)}</strong>
         <span>UV {weather?.uvIndex !== null && weather?.uvIndex !== undefined ? formatNumber(weather.uvIndex, 1) : '--'}</span>
         <span>{formatWeatherTime(weather?.sunrise ?? null)} / {formatWeatherTime(weather?.sunset ?? null)}</span>
+        <span>Updated {weather ? formatWeatherTime(new Date(weather.fetchedAt).toISOString()) : '--'}</span>
       </div>
     </div>
   )
@@ -641,8 +643,9 @@ export default function App() {
           daily: 'sunrise,sunset,uv_index_max',
           timezone: 'auto',
           forecast_days: '1',
+          _: String(Date.now()),
         })
-        const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`)
+        const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, { cache: 'no-store' })
         if (!response.ok) throw new Error('Weather request failed')
 
         const payload = await response.json()
@@ -670,12 +673,18 @@ export default function App() {
       }
     }
 
+    function refreshWhenVisible() {
+      if (document.visibilityState === 'visible') loadWeather()
+    }
+
     loadWeather()
-    refreshTimer = window.setInterval(loadWeather, 15 * 60 * 1000)
+    refreshTimer = window.setInterval(loadWeather, WEATHER_REFRESH_MS)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
 
     return () => {
       cancelled = true
       if (refreshTimer) window.clearInterval(refreshTimer)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
     }
   }, [])
 
@@ -768,6 +777,10 @@ export default function App() {
     </main>
   )
 }
+
+
+
+
 
 
 
