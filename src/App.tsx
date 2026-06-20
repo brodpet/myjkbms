@@ -182,8 +182,8 @@ function MetricTile({ label, value, helper, tone }: { label: string; value: stri
 
 function SocDial({ value, label }: { value: number; label: string }) {
   const safeValue = Math.max(0, Math.min(100, value || 0))
-  const style = { '--soc': `${safeValue * 3.6}deg` } as CSSProperties
-
+  const socColor = safeValue >= 60 ? '#35eb86' : safeValue >= 30 ? '#ffb020' : '#ff5252'
+  const style = { '--soc': `${safeValue * 3.6}deg`, '--soc-color': socColor } as CSSProperties
   return (
     <div className="soc-dial-wrap">
       <div className="soc-dial" style={style}>
@@ -627,3 +627,6 @@ export default function App() {
     </main>
   )
 }
+
+
+

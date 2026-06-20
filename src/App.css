@@ -546,7 +546,7 @@ button {
   border-radius: 50%;
   background:
     radial-gradient(circle at center, #07111c 0 55%, transparent 56%),
-    conic-gradient(#35eb86 var(--soc), rgba(119, 143, 152, 0.32) 0);
+    conic-gradient(var(--soc-color) var(--soc), rgba(119, 143, 152, 0.32) 0);
 }
 
 .soc-dial > div {
@@ -901,4 +901,5 @@ button:focus-visible {
     font-size: 2rem;
   }
 }
+
 
