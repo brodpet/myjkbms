@@ -160,9 +160,9 @@ button {
 }
 
 .battery-deck {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(320px, 1.4fr) minmax(190px, 0.65fr) minmax(290px, 1fr) minmax(210px, 0.75fr);
+  align-items: stretch;
   gap: 18px;
   min-height: 110px;
   padding: 14px 22px;
@@ -180,14 +180,14 @@ button {
 }
 
 .battery-deck .flow-node {
-  width: min(520px, 100%);
+  width: 100%;
 }
 
 .battery-state,
 .battery-estimate {
   display: grid;
   gap: 6px;
-  min-width: 260px;
+  min-width: 0;
   padding: 16px 20px;
   border: 1px solid rgba(85, 170, 220, 0.16);
   border-radius: 7px;
@@ -232,6 +232,148 @@ button {
 
 .battery-state.muted strong {
   color: #a7b6c7;
+}
+
+.weather-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(85, 170, 220, 0.16);
+  border-radius: 7px;
+  background:
+    linear-gradient(135deg, rgba(8, 22, 35, 0.78), rgba(8, 19, 30, 0.92)),
+    radial-gradient(circle at 100% 0%, rgba(47, 184, 255, 0.16), transparent 62%);
+}
+
+.weather-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.weather-main small,
+.weather-main em,
+.weather-chips span,
+.solar-window span {
+  color: #a7b6c7;
+}
+
+.weather-main small,
+.weather-main em {
+  display: block;
+}
+
+.weather-main small {
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.weather-main strong {
+  display: block;
+  margin-top: 3px;
+  color: #37b7ff;
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', Consolas, monospace;
+  font-size: clamp(1.45rem, 2.2vw, 1.9rem);
+  line-height: 1;
+}
+
+.weather-main em {
+  margin-top: 3px;
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+.weather-icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffcf4a 0 34%, transparent 35%);
+}
+
+.weather-icon::before,
+.weather-icon::after {
+  content: '';
+  position: absolute;
+}
+
+.weather-icon::before {
+  left: 12px;
+  right: 0;
+  bottom: 7px;
+  height: 20px;
+  border-radius: 999px;
+  background: #d8f2ff;
+  box-shadow: -10px 3px 0 #9fdcf9;
+}
+
+.weather-icon::after {
+  left: 2px;
+  right: 2px;
+  bottom: 5px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(47, 184, 255, 0.7);
+}
+
+.weather-icon.sun::before,
+.weather-icon.sun::after,
+.weather-icon.moon::after {
+  display: none;
+}
+
+.weather-icon.moon {
+  background: radial-gradient(circle at 60% 35%, #07111c 0 34%, transparent 35%), #c8dcff;
+}
+
+.weather-icon.rain::after {
+  display: block;
+  left: 13px;
+  width: 4px;
+  height: 12px;
+  border-radius: 999px;
+  background: #37b7ff;
+  box-shadow: 10px 3px 0 #37b7ff, 20px 0 0 #37b7ff;
+  transform: rotate(16deg);
+}
+
+.weather-icon.fog::after {
+  display: block;
+  left: 3px;
+  right: 3px;
+  bottom: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(216, 242, 255, 0.7);
+  box-shadow: 0 8px 0 rgba(216, 242, 255, 0.45);
+}
+
+.weather-chips,
+.solar-window {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.weather-chips span,
+.solar-window span,
+.solar-window strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(85, 170, 220, 0.14);
+  border-radius: 999px;
+  background: rgba(6, 18, 30, 0.5);
+  font-size: 0.72rem;
+}
+
+.solar-window strong {
+  border-color: rgba(53, 235, 134, 0.28);
+  color: #35eb86;
+  background: rgba(53, 235, 134, 0.08);
 }
 .flow-node small,
 .metric-tile span,
@@ -803,15 +945,22 @@ button:focus-visible {
 
   .topbar,
   .title-cluster,
-  .top-actions,
-  .battery-deck {
+  .top-actions {
     align-items: flex-start;
     flex-direction: column;
   }
 
+  .battery-deck {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
   .battery-estimate,
+  .battery-state,
+  .weather-card,
   .battery-deck .flow-node {
     width: 100%;
+    min-width: 0;
   }
 
   .title-cluster > i {
@@ -826,7 +975,6 @@ button:focus-visible {
     margin-bottom: 10px;
   }
 
-  .battery-deck,
   .pack-comparison,
   .pack-panel,
   .side-panel {
@@ -880,26 +1028,8 @@ button:focus-visible {
   }
 
   .comparison-row > span:not(:first-of-type)::before {
-    content: attr(data-label);
-    display: block;
-    margin-bottom: 3px;
+    content: attr(data-label) ': ';
     color: #a7b6c7;
-    font-family: Inter, Manrope, 'Segoe UI', system-ui, sans-serif;
-    font-size: 0.68rem;
-  }
-
-  .command-panel {
-    gap: 14px;
-  }
-
-  .soc-dial-wrap,
-  .soc-dial {
-    width: 132px;
-  }
-
-  .soc-dial strong {
-    font-size: 2rem;
+    font-family: inherit;
   }
 }
-
-

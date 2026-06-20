@@ -10,6 +10,9 @@ const STALE_SECONDS = 120
 const CELLS_PER_PACK = 8
 const TOTAL_BATTERY_CAPACITY_AH = 908
 const NOMINAL_BATTERY_VOLTAGE = 25.6
+const WEATHER_LATITUDE = 12.0
+const WEATHER_LONGITUDE = 123.98333
+const WEATHER_LOCATION = 'Cataingan, Masbate'
 const PACKS = ['CALB-new314ah', 'CALB-314ah', 'Cornex-280ah']
 const PACK_LABELS: Record<string, string> = {
   'CALB-new314ah': 'CALB New 314Ah',
@@ -53,6 +56,19 @@ interface PackData {
 
 type PackMap = Record<string, PackData>
 
+interface WeatherData {
+  temperature: number
+  apparentTemperature: number
+  humidity: number
+  windSpeed: number
+  weatherCode: number
+  cloudCover: number
+  isDay: boolean
+  uvIndex: number | null
+  sunrise: string | null
+  sunset: string | null
+  fetchedAt: number
+}
 function emptyPack(): PackData {
   return {
     soc: 0,
@@ -149,6 +165,44 @@ function formatTime(value: number) {
     second: '2-digit',
     hour12: false,
   }).format(value)
+}
+
+function formatWeatherTime(value: string | null) {
+  if (!value) return '--'
+
+  return new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(value))
+}
+
+function getWeatherLabel(code: number) {
+  if (code === 0) return 'Clear sky'
+  if ([1, 2].includes(code)) return 'Partly cloudy'
+  if (code === 3) return 'Overcast'
+  if ([45, 48].includes(code)) return 'Foggy'
+  if ([51, 53, 55, 56, 57].includes(code)) return 'Drizzle'
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return 'Rain'
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return 'Snow'
+  if ([95, 96, 99].includes(code)) return 'Thunderstorm'
+  return 'Weather update'
+}
+
+function getWeatherIcon(code: number, isDay: boolean) {
+  if ([61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code)) return 'rain'
+  if ([45, 48].includes(code)) return 'fog'
+  if (code === 0) return isDay ? 'sun' : 'moon'
+  return 'cloud'
+}
+
+function getChargingWindow(weather: WeatherData | null) {
+  if (!weather) return 'Waiting for local weather'
+  if (!weather.isDay) return 'Night window'
+  if (weather.weatherCode >= 61 && weather.weatherCode <= 99) return 'Rain may reduce charging'
+  if (weather.cloudCover >= 75) return 'Cloud cover may reduce charging'
+  if ((weather.uvIndex ?? 0) >= 6) return 'Strong charging window'
+  return 'Good charging window'
 }
 
 function formatDuration(hours: number | null) {
@@ -270,11 +324,42 @@ function BatteryState({ totalPower }: { totalPower: number }) {
   )
 }
 
-function BatteryDeck({ averageVoltage, totalCurrent, totalPower, remainingAh }: {
+function WeatherCard({ weather, status }: { weather: WeatherData | null; status: string }) {
+  const weatherIcon = weather ? getWeatherIcon(weather.weatherCode, weather.isDay) : 'cloud'
+
+  return (
+    <div className="weather-card">
+      <div className="weather-main">
+        <span className={`weather-icon ${weatherIcon}`} aria-hidden="true" />
+        <div>
+          <small>{WEATHER_LOCATION} weather</small>
+          <strong>{weather ? `${formatNumber(weather.temperature)}C` : '--'}</strong>
+          <em>{weather ? getWeatherLabel(weather.weatherCode) : status}</em>
+        </div>
+      </div>
+
+      <div className="weather-chips">
+        <span>Feels {weather ? `${formatNumber(weather.apparentTemperature)}C` : '--'}</span>
+        <span>Humidity {weather ? `${formatNumber(weather.humidity)}%` : '--'}</span>
+        <span>Wind {weather ? `${formatNumber(weather.windSpeed)} km/h` : '--'}</span>
+      </div>
+
+      <div className="solar-window">
+        <strong>{getChargingWindow(weather)}</strong>
+        <span>UV {weather?.uvIndex !== null && weather?.uvIndex !== undefined ? formatNumber(weather.uvIndex, 1) : '--'}</span>
+        <span>{formatWeatherTime(weather?.sunrise ?? null)} / {formatWeatherTime(weather?.sunset ?? null)}</span>
+      </div>
+    </div>
+  )
+}
+
+function BatteryDeck({ averageVoltage, totalCurrent, totalPower, remainingAh, weather, weatherStatus }: {
   averageVoltage: number | null
   totalCurrent: number
   totalPower: number
   remainingAh: number
+  weather: WeatherData | null
+  weatherStatus: string
 }) {
   const state = getBatteryState(totalPower)
   const batteryBars = getBatteryBarCount(averageVoltage)
@@ -294,6 +379,7 @@ function BatteryDeck({ averageVoltage, totalCurrent, totalPower, remainingAh }: 
         </div>
       </div>
       <BatteryState totalPower={totalPower} />
+      <WeatherCard weather={weather} status={weatherStatus} />
       <BatteryEstimate totalPower={totalPower} remainingAh={remainingAh} />
     </section>
   )
@@ -531,11 +617,66 @@ export default function App() {
   const [status, setStatus] = useState('Connecting...')
   const [now, setNow] = useState(Date.now())
   const [selectedView, setSelectedView] = useState('all')
+  const [weather, setWeather] = useState<WeatherData | null>(null)
+  const [weatherStatus, setWeatherStatus] = useState('Loading Cataingan weather')
   const clientRef = useRef<mqtt.MqttClient | null>(null)
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    let refreshTimer: number | undefined
+
+    async function loadWeather() {
+      setWeatherStatus('Updating Cataingan weather')
+
+      try {
+        const params = new URLSearchParams({
+          latitude: String(WEATHER_LATITUDE),
+          longitude: String(WEATHER_LONGITUDE),
+          current: 'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,cloud_cover,wind_speed_10m',
+          daily: 'sunrise,sunset,uv_index_max',
+          timezone: 'auto',
+          forecast_days: '1',
+        })
+        const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`)
+        if (!response.ok) throw new Error('Weather request failed')
+
+        const payload = await response.json()
+        const current = payload.current ?? {}
+        const daily = payload.daily ?? {}
+
+        if (cancelled) return
+
+        setWeather({
+          temperature: Number(current.temperature_2m ?? 0),
+          apparentTemperature: Number(current.apparent_temperature ?? 0),
+          humidity: Number(current.relative_humidity_2m ?? 0),
+          windSpeed: Number(current.wind_speed_10m ?? 0),
+          weatherCode: Number(current.weather_code ?? 0),
+          cloudCover: Number(current.cloud_cover ?? 0),
+          isDay: Number(current.is_day ?? 0) === 1,
+          uvIndex: daily.uv_index_max?.[0] ?? null,
+          sunrise: daily.sunrise?.[0] ?? null,
+          sunset: daily.sunset?.[0] ?? null,
+          fetchedAt: Date.now(),
+        })
+        setWeatherStatus('Cataingan weather live')
+      } catch {
+        if (!cancelled) setWeatherStatus('Cataingan weather unavailable')
+      }
+    }
+
+    loadWeather()
+    refreshTimer = window.setInterval(loadWeather, 15 * 60 * 1000)
+
+    return () => {
+      cancelled = true
+      if (refreshTimer) window.clearInterval(refreshTimer)
+    }
   }, [])
 
   useEffect(() => {
@@ -600,7 +741,7 @@ export default function App() {
     <main className="dashboard-shell">
       <HeaderBar status={connectionLabel} tone={connectionTone} now={now} />
 
-      <BatteryDeck averageVoltage={averageVoltage} totalCurrent={totalCurrent} totalPower={totalPower} remainingAh={totalCapacity} />
+      <BatteryDeck averageVoltage={averageVoltage} totalCurrent={totalCurrent} totalPower={totalPower} remainingAh={totalCapacity} weather={weather} weatherStatus={weatherStatus} />
 
       <section className="summary-grid" aria-label="Battery summary">
         <MetricTile label="Avg SOC" value={totalSoc !== null ? `${totalSoc}%` : '--'} helper="Across reporting packs" tone={totalSoc !== null && totalSoc < 20 ? 'danger' : 'good'} />
@@ -627,6 +768,14 @@ export default function App() {
     </main>
   )
 }
+
+
+
+
+
+
+
+
 
 
 
