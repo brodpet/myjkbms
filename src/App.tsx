@@ -307,9 +307,9 @@ function getBatteryState(totalPower: number) {
 
 function getBatteryBarCount(voltage: number | null) {
   if (!voltage || voltage <= 0) return 0
-  if (voltage >= 26.4) return 4
-  if (voltage > 25.9) return 3
-  if (voltage > 25.6) return 2
+  if (voltage >= 27) return 4
+  if (voltage >= 26.6) return 3
+  if (voltage >= 26) return 2
   return 1
 }
 
@@ -777,6 +777,8 @@ export default function App() {
     </main>
   )
 }
+
+
 
 
 
