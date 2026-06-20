@@ -250,6 +250,14 @@ function getBatteryState(totalPower: number) {
   return { label: 'Idle', tone: 'muted', helper: 'Power flow near zero' }
 }
 
+function getBatteryBarCount(voltage: number | null) {
+  if (!voltage || voltage <= 0) return 0
+  if (voltage >= 26.4) return 4
+  if (voltage > 25.9) return 3
+  if (voltage > 25.6) return 2
+  return 1
+}
+
 function BatteryState({ totalPower }: { totalPower: number }) {
   const state = getBatteryState(totalPower)
 
@@ -261,17 +269,24 @@ function BatteryState({ totalPower }: { totalPower: number }) {
     </div>
   )
 }
+
 function BatteryDeck({ averageVoltage, totalCurrent, totalPower, remainingAh }: {
   averageVoltage: number | null
   totalCurrent: number
   totalPower: number
   remainingAh: number
 }) {
+  const state = getBatteryState(totalPower)
+  const batteryBars = getBatteryBarCount(averageVoltage)
 
   return (
     <section className="battery-deck" aria-label="Battery bank status">
-      <div className="flow-node battery-node">
-        <span className="battery-icon"><i /></span>
+      <div className={`flow-node battery-node ${state.tone}`}>
+        <span className={`battery-icon bars-${batteryBars}`} aria-label={`${batteryBars} battery bars`}>
+          {Array.from({ length: 4 }, (_, index) => (
+            <i className={index < batteryBars ? 'active' : ''} key={index} />
+          ))}
+        </span>
         <div>
           <small>Battery Bank</small>
           <strong>{averageVoltage !== null ? `${formatNumber(averageVoltage, 2)}V` : '--'}</strong>
@@ -612,6 +627,3 @@ export default function App() {
     </main>
   )
 }
-
-
-
