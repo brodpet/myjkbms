@@ -305,11 +305,11 @@ function getBatteryState(totalPower: number) {
   return { label: 'Idle', tone: 'muted', helper: 'Power flow near zero' }
 }
 
-function getBatteryBarCount(voltage: number | null) {
-  if (!voltage || voltage <= 0) return 0
-  if (voltage >= 27) return 4
-  if (voltage >= 26.6) return 3
-  if (voltage >= 26) return 2
+function getBatteryBarCount(soc: number | null) {
+  if (soc === null || soc <= 0) return 0
+  if (soc >= 80) return 4
+  if (soc >= 60) return 3
+  if (soc >= 40) return 2
   return 1
 }
 
@@ -355,8 +355,9 @@ function WeatherCard({ weather, status }: { weather: WeatherData | null; status:
   )
 }
 
-function BatteryDeck({ averageVoltage, totalCurrent, totalPower, remainingAh, weather, weatherStatus }: {
+function BatteryDeck({ averageVoltage, totalSoc, totalCurrent, totalPower, remainingAh, weather, weatherStatus }: {
   averageVoltage: number | null
+  totalSoc: number | null
   totalCurrent: number
   totalPower: number
   remainingAh: number
@@ -364,7 +365,7 @@ function BatteryDeck({ averageVoltage, totalCurrent, totalPower, remainingAh, we
   weatherStatus: string
 }) {
   const state = getBatteryState(totalPower)
-  const batteryBars = getBatteryBarCount(averageVoltage)
+  const batteryBars = getBatteryBarCount(totalSoc)
 
   return (
     <section className="battery-deck" aria-label="Battery bank status">
@@ -617,7 +618,7 @@ function TrendsPanel({ data, totalSoc, totalPower }: { data: PackData | undefine
 export default function App() {
   const [packs, setPacks] = useState<PackMap>({})
   const [status, setStatus] = useState('Connecting...')
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(() => Date.now())
   const [selectedView, setSelectedView] = useState('all')
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [weatherStatus, setWeatherStatus] = useState('Loading Cataingan weather')
@@ -630,7 +631,6 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
-    let refreshTimer: number | undefined
 
     async function loadWeather() {
       setWeatherStatus('Updating Cataingan weather')
@@ -678,12 +678,12 @@ export default function App() {
     }
 
     loadWeather()
-    refreshTimer = window.setInterval(loadWeather, WEATHER_REFRESH_MS)
+    const refreshTimer = window.setInterval(loadWeather, WEATHER_REFRESH_MS)
     document.addEventListener('visibilitychange', refreshWhenVisible)
 
     return () => {
       cancelled = true
-      if (refreshTimer) window.clearInterval(refreshTimer)
+      window.clearInterval(refreshTimer)
       document.removeEventListener('visibilitychange', refreshWhenVisible)
     }
   }, [])
@@ -750,7 +750,7 @@ export default function App() {
     <main className="dashboard-shell">
       <HeaderBar status={connectionLabel} tone={connectionTone} now={now} />
 
-      <BatteryDeck averageVoltage={averageVoltage} totalCurrent={totalCurrent} totalPower={totalPower} remainingAh={totalCapacity} weather={weather} weatherStatus={weatherStatus} />
+      <BatteryDeck averageVoltage={averageVoltage} totalSoc={totalSoc} totalCurrent={totalCurrent} totalPower={totalPower} remainingAh={totalCapacity} weather={weather} weatherStatus={weatherStatus} />
 
       <section className="summary-grid" aria-label="Battery summary">
         <MetricTile label="Avg SOC" value={totalSoc !== null ? `${totalSoc}%` : '--'} helper="Across reporting packs" tone={totalSoc !== null && totalSoc < 20 ? 'danger' : 'good'} />
