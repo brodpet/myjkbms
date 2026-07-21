@@ -567,6 +567,7 @@ function PackComparison({ packs, now, selectedView, onSelect }: {
           <span>Power</span>
           <span>Temp</span>
           <span>Delta</span>
+          <span>Cycles</span>
           <span>Last</span>
         </div>
 
@@ -589,6 +590,7 @@ function PackComparison({ packs, now, selectedView, onSelect }: {
               <span data-label="Power">{data ? `${formatNumber(data.power)}W` : '--'}</span>
               <span data-label="Temp">{data ? `${formatNumber(data.temp1, 1)}C` : '--'}</span>
               <span data-label="Delta">{data ? `${formatNumber(data.delta_cell * 1000)}mV` : '--'}</span>
+              <span data-label="Cycles">{data && data.cycles > 0 ? formatNumber(data.cycles) : '--'}</span>
               <span data-label="Last">{age !== null ? `${age}s` : '--'}</span>
             </button>
           )

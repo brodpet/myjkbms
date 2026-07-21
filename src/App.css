@@ -522,7 +522,7 @@ button {
 .comparison-header,
 .comparison-row {
   display: grid;
-  grid-template-columns: minmax(170px, 1.3fr) 112px repeat(7, minmax(78px, 1fr));
+  grid-template-columns: minmax(170px, 1.3fr) 112px repeat(8, minmax(78px, 1fr));
   gap: 10px;
   align-items: center;
 }
