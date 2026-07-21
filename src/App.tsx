@@ -34,6 +34,7 @@ const SENSOR_FIELDS: Record<string, keyof Omit<PackData, 'cells' | 'updatedAt'>>
   temperature_2: 'temp2',
   mosfet_temperature: 'mosfet_temp',
   capacity_remaining: 'capacity',
+  charging_cycles: 'cycles',
   min_cell_voltage: 'min_cell',
   max_cell_voltage: 'max_cell',
   delta_cell_voltage: 'delta_cell',
@@ -48,6 +49,7 @@ interface PackData {
   temp2: number
   mosfet_temp: number
   capacity: number
+  cycles: number
   min_cell: number
   max_cell: number
   delta_cell: number
@@ -80,6 +82,7 @@ function emptyPack(): PackData {
     temp2: 0,
     mosfet_temp: 0,
     capacity: 0,
+    cycles: 0,
     min_cell: 0,
     max_cell: 0,
     delta_cell: 0,
@@ -112,6 +115,7 @@ function buildAggregatePack(packs: PackData[]): PackData | undefined {
     temp2: average(packs.map(pack => pack.temp2)),
     mosfet_temp: average(packs.map(pack => pack.mosfet_temp)),
     capacity: packs.reduce((sum, pack) => sum + pack.capacity, 0),
+    cycles: Math.round(average(packs.map(pack => pack.cycles).filter(value => value > 0))),
     min_cell: minCell,
     max_cell: maxCell,
     delta_cell: maxCell - minCell,
@@ -484,6 +488,7 @@ function PackPanel({ name, data, now, selectedView, onSelect }: {
 
           <div className="detail-strip">
             <MetricTile label="Health" value={health.label} tone={health.tone} helper="SOH not measured" />
+            <MetricTile label="Cycles" value={data.cycles > 0 ? formatNumber(data.cycles) : '--'} helper={selectedView === 'all' ? 'Average charge cycles' : 'Charge cycles'} />
             <MetricTile label="MOSFET temp" value={`${formatNumber(data.mosfet_temp, 1)}C`} tone={data.mosfet_temp > 60 ? 'warning' : ''} />
             <MetricTile label="Temperatures" value={`${formatNumber(data.temp1, 1)}C / ${formatNumber(data.temp2, 1)}C`} />
             <MetricTile label="Next update" value={countdown !== null ? `${countdown}s` : '--'} helper={age !== null ? `Last ${age}s ago` : 'Waiting'} />
