@@ -753,6 +753,10 @@ export default function App() {
   const connectionTone = status === 'Connected' ? 'good' : status === 'Connecting...' || status === 'Reconnecting...' ? 'warning' : 'danger'
   const connectionLabel = status === 'Connected' ? 'MQTT connected' : status
 
+  useEffect(() => {
+    document.title = totalSoc !== null ? `${totalSoc}% | JK BMS Monitor` : 'JK BMS Monitor'
+  }, [totalSoc])
+
   return (
     <main className="dashboard-shell">
       <HeaderBar status={connectionLabel} tone={connectionTone} now={now} />
