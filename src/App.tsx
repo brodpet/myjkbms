@@ -2,9 +2,9 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import mqtt from 'mqtt'
 import './App.css'
 
-const BROKER = 'wss://02d2caf5b468442a8c326f842428590f.s1.eu.hivemq.cloud:8884/mqtt'
-const USERNAME = 'brodpet1'
-const PASSWORD = 'Brodpet18'
+const BROKER = 'wss://mqtt.automationph.si/mqtt'
+const USERNAME = 'dashboard'
+const PASSWORD = 'brodpet18'
 const EXPECTED_UPDATE_SECONDS = 10
 const STALE_SECONDS = 120
 const CELLS_PER_PACK = 8
