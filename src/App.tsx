@@ -5,25 +5,21 @@ import './App.css'
 const BROKER = 'wss://mqtt.automationph.si/mqtt'
 const USERNAME = 'dashboard'
 const PASSWORD = 'brodpet18'
-const EXPECTED_UPDATE_SECONDS = 10
+const EXPECTED_UPDATE_SECONDS = 5
 const STALE_SECONDS = 120
-const CELLS_PER_PACK = 8
-const TOTAL_BATTERY_CAPACITY_AH = 908
-const NOMINAL_BATTERY_VOLTAGE = 25.6
+const CELLS_PER_PACK = 16
+const TOTAL_BATTERY_CAPACITY_AH = 314
+const NOMINAL_BATTERY_VOLTAGE = 51.2
 const WEATHER_LATITUDE = 12.0
 const WEATHER_LONGITUDE = 123.98333
 const WEATHER_LOCATION = 'Cataingan, Masbate'
 const WEATHER_REFRESH_MS = 5 * 60 * 1000
-const PACKS = ['CALB-new314ah', 'CALB-314ah', 'Cornex-280ah']
+const PACKS = ['LiFePO4-48V']
 const PACK_LABELS: Record<string, string> = {
-  'CALB-new314ah': 'CALB New 314Ah',
-  'CALB-314ah': 'CALB 314Ah',
-  'Cornex-280ah': 'Cornex 280Ah',
+  'LiFePO4-48V': 'LiFePO4 48V',
 }
 const SENSOR_PACKS: Record<string, string> = {
-  'calb-new314ah': 'CALB-new314ah',
-  calb_314ah: 'CALB-314ah',
-  cornex_280ah: 'Cornex-280ah',
+  lifepo4_48v: 'LiFePO4-48V',
 }
 const SENSOR_FIELDS: Record<string, keyof Omit<PackData, 'cells' | 'updatedAt'>> = {
   soc: 'soc',
@@ -422,7 +418,7 @@ function PackSelector({ selectedView, onSelect }: { selectedView: string; onSele
       <button className={selectedView === 'all' ? 'active' : ''} onClick={() => onSelect('all')}>All</button>
       {PACKS.map(name => (
         <button className={selectedView === name ? 'active' : ''} key={name} onClick={() => onSelect(name)}>
-          {name === 'CALB-new314ah' ? 'CALB New' : name === 'CALB-314ah' ? 'CALB' : 'Cornex'}
+          {PACK_LABELS[name]}
         </button>
       ))}
     </nav>
@@ -472,8 +468,8 @@ function PackPanel({ name, data, now, selectedView, onSelect }: {
             <div className="cell-section">
               <div className="section-heading">
                 <div>
-                  <span className="eyebrow">24V pack</span>
-                  <h3>8-cell voltage map</h3>
+                  <span className="eyebrow">48V pack</span>
+                  <h3>{CELLS_PER_PACK}-cell voltage map</h3>
                 </div>
                 <span>{age !== null ? `Last ${age}s ago` : 'Waiting'}</span>
               </div>
