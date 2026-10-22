@@ -145,12 +145,10 @@ button {
   color: #ff5f5f;
   background: rgba(255, 95, 95, 0.1);
 }
-
 .battery-deck,
 .metric-tile,
 .pack-panel,
-.side-panel,
-.pack-comparison {
+.side-panel {
   border: 1px solid rgba(85, 170, 220, 0.18);
   border-radius: 8px;
   background:
@@ -506,65 +504,6 @@ button {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-top: 10px;
-}
-
-.pack-comparison {
-  margin-top: 10px;
-  padding: 16px 18px;
-}
-
-.comparison-table {
-  display: grid;
-  gap: 7px;
-  margin-top: 14px;
-}
-
-.comparison-header,
-.comparison-row {
-  display: grid;
-  grid-template-columns: minmax(170px, 1.3fr) 112px repeat(8, minmax(78px, 1fr));
-  gap: 10px;
-  align-items: center;
-}
-
-.comparison-header {
-  padding: 0 12px 4px;
-  color: #a7b6c7;
-  font-family: 'JetBrains Mono', 'IBM Plex Mono', Consolas, monospace;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.comparison-row {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid rgba(85, 170, 220, 0.14);
-  border-radius: 7px;
-  color: #f3f8fb;
-  background: rgba(6, 18, 30, 0.48);
-  cursor: pointer;
-  text-align: left;
-}
-
-.comparison-row:hover,
-.comparison-row.active {
-  border-color: rgba(53, 235, 134, 0.42);
-  background: rgba(53, 235, 134, 0.06);
-}
-
-.comparison-row strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.comparison-row > span:not(:first-of-type) {
-  color: #37b7ff;
-  font-family: 'JetBrains Mono', 'IBM Plex Mono', Consolas, monospace;
-  font-variant-numeric: tabular-nums;
 }
 
 .metric-tile {
@@ -961,8 +900,6 @@ button:focus-visible {
   .topbar {
     margin-bottom: 10px;
   }
-
-  .pack-comparison,
   .pack-panel,
   .side-panel {
     padding: 14px;
@@ -994,31 +931,5 @@ button:focus-visible {
   .cell-map {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .comparison-header {
-    display: none;
-  }
-
-  .comparison-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 9px;
-    padding: 12px;
-  }
-
-  .comparison-row strong {
-    grid-column: 1 / -1;
-    font-size: 1rem;
-  }
-
-  .comparison-row > span:first-of-type {
-    grid-column: 1 / -1;
-  }
-
-  .comparison-row > span:not(:first-of-type)::before {
-    content: attr(data-label) ': ';
-    color: #a7b6c7;
-    font-family: inherit;
-  }
 }
-
 

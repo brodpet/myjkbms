@@ -538,64 +538,6 @@ function AlertsPanel({ packs, now }: { packs: PackMap; now: number }) {
   )
 }
 
-function PackComparison({ packs, now, selectedView, onSelect }: {
-  packs: PackMap
-  now: number
-  selectedView: string
-  onSelect: (name: string) => void
-}) {
-  return (
-    <section className="pack-comparison" aria-label="Pack comparison">
-      <div className="section-heading">
-        <div>
-          <span className="eyebrow">Compare</span>
-          <h3>Pack comparison</h3>
-        </div>
-      </div>
-
-      <div className="comparison-table">
-        <div className="comparison-header">
-          <span>Pack</span>
-          <span>Status</span>
-          <span>SOC</span>
-          <span>Voltage</span>
-          <span>Current</span>
-          <span>Power</span>
-          <span>Temp</span>
-          <span>Delta</span>
-          <span>Cycles</span>
-          <span>Last</span>
-        </div>
-
-        {PACKS.map(name => {
-          const data = packs[name]
-          const health = getPackHealth(data, now)
-          const age = getAge(data, now)
-
-          return (
-            <button
-              className={`comparison-row ${selectedView === name ? 'active' : ''}`}
-              key={name}
-              onClick={() => onSelect(name)}
-            >
-              <strong>{PACK_LABELS[name] ?? name}</strong>
-              <span><StatusPill label={health.label} tone={health.tone} /></span>
-              <span data-label="SOC">{data ? `${formatNumber(data.soc)}%` : '--'}</span>
-              <span data-label="Voltage">{data ? `${formatNumber(data.voltage, 2)}V` : '--'}</span>
-              <span data-label="Current">{data ? `${data.current > 0 ? '+' : ''}${formatNumber(data.current, 1)}A` : '--'}</span>
-              <span data-label="Power">{data ? `${formatNumber(data.power)}W` : '--'}</span>
-              <span data-label="Temp">{data ? `${formatNumber(data.temp1, 1)}C` : '--'}</span>
-              <span data-label="Delta">{data ? `${formatNumber(data.delta_cell * 1000)}mV` : '--'}</span>
-              <span data-label="Cycles">{data && data.cycles > 0 ? formatNumber(data.cycles) : '--'}</span>
-              <span data-label="Last">{age !== null ? `${age}s` : '--'}</span>
-            </button>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
 function TrendsPanel({ data, totalSoc, totalPower }: { data: PackData | undefined; totalSoc: number | null; totalPower: number }) {
   return (
     <aside className="side-panel trends-panel">
@@ -765,8 +707,6 @@ export default function App() {
         <MetricTile label="Remaining" value={`${formatNumber(totalCapacity, 1)}Ah / ${TOTAL_BATTERY_CAPACITY_AH}Ah`} helper="Remaining / total capacity" />
         <MetricTile label="Online packs" value={`${onlinePacks}/${PACKS.length}`} helper="Fresh within 120s" />
       </section>
-
-      <PackComparison packs={displayPacks} now={now} selectedView={selectedView} onSelect={setSelectedView} />
 
       <div className="dashboard-grid">
         <PackPanel
