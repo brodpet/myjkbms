@@ -59,7 +59,7 @@ type PackMap = Record<string, PackData>
 // Published by the same ESP32 (wattseek_ble component) as jk-bms/sensor/inverter_<field>/state.
 // Battery power/current are + while charging, like the BMS.
 type InverterField =
-  | 'pv_power' | 'pv_voltage' | 'pv_current'
+  | 'pv_power' | 'pv1_voltage' | 'pv1_current' | 'pv1_power' | 'pv2_voltage' | 'pv2_current' | 'pv2_power'
   | 'battery_power' | 'battery_voltage' | 'battery_current' | 'battery_soc'
   | 'load_power' | 'load_voltage' | 'load_frequency'
   | 'pv_energy_today' | 'pv_energy_total' | 'load_energy_today' | 'load_energy_total'
@@ -585,7 +585,7 @@ function InverterPanel({ data, now }: { data: InverterData | null; now: number }
           <MetricTile
             label="Solar PV"
             value={`${formatNumber(data.pv_power)}W`}
-            helper={`${formatNumber(data.pv_voltage, 1)}V / ${formatNumber(data.pv_current, 2)}A`}
+            helper={`PV1 ${formatNumber(data.pv1_power)}W · PV2 ${formatNumber(data.pv2_power)}W`}
             tone={(data.pv_power ?? 0) > 0 ? 'good' : ''}
           />
           <MetricTile
@@ -718,11 +718,13 @@ function InverterView({ data, bms, now }: { data: InverterData | null; bms: Pack
           ['Last update', age !== null ? `${age}s ago` : '--'],
         ]} />
         <InfoCard title="PV information" rows={[
-          ['PV voltage', `${formatNumber(data?.pv_voltage, 1)}V`],
-          ['PV current', `${formatNumber(data?.pv_current, 2)}A`],
-          ['PV power', `${formatNumber(data?.pv_power)}W`],
-          ['PV today', `${formatNumber(data?.pv_energy_today, 2)}kWh`],
-          ['PV total', `${formatNumber(data?.pv_energy_total, 2)}kWh`],
+          ['PV1 voltage', `${formatNumber(data?.pv1_voltage, 1)}V`],
+          ['PV1 current', `${formatNumber(data?.pv1_current, 2)}A`],
+          ['PV1 power', `${formatNumber(data?.pv1_power)}W`],
+          ['PV2 voltage', `${formatNumber(data?.pv2_voltage, 1)}V`],
+          ['PV2 current', `${formatNumber(data?.pv2_current, 2)}A`],
+          ['PV2 power', `${formatNumber(data?.pv2_power)}W`],
+          ['Total PV power', `${formatNumber(data?.pv_power)}W`],
         ]} />
         <InfoCard title="Battery information" rows={[
           ['Battery power (BMS)', bms ? `${formatNumber(bms.power)}W` : '--'],
@@ -737,6 +739,10 @@ function InverterView({ data, bms, now }: { data: InverterData | null; bms: Pack
           ['Load power', `${formatNumber(data?.load_power)}W`],
           ['Output voltage', `${formatNumber(data?.load_voltage, 1)}V`],
           ['Output frequency', `${formatNumber(data?.load_frequency, 2)}Hz`],
+        ]} />
+        <InfoCard title="Energy" rows={[
+          ['PV today', `${formatNumber(data?.pv_energy_today, 2)}kWh`],
+          ['PV total', `${formatNumber(data?.pv_energy_total, 2)}kWh`],
           ['Load today', `${formatNumber(data?.load_energy_today, 2)}kWh`],
           ['Load total', `${formatNumber(data?.load_energy_total, 2)}kWh`],
         ]} />
