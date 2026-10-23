@@ -645,9 +645,11 @@ function InverterView({ data, bms, now }: { data: InverterData | null; bms: Pack
   const status = !data ? { label: 'Waiting', tone: 'muted' } : stale ? { label: 'Stale', tone: 'danger' } : { label: 'Live', tone: 'good' }
   const watts = (value: number | undefined) => (value === undefined ? '-- W' : `${Math.round(Math.abs(value))} W`)
   const soc = Math.max(0, Math.min(100, bms?.soc ?? data?.battery_soc ?? 0))
+  // The BMS measures the pack itself; the inverter's battery reading is only a fallback
+  const batteryWatts = bms?.power ?? data?.battery_power
   const lines = [
     { kind: 'pv' as const, d: 'M118 112 H278 Q290 112 290 124 V170', watts: data?.pv_power },
-    { kind: 'battery' as const, d: 'M118 360 H278 Q290 360 290 348 V270', watts: data?.battery_power },
+    { kind: 'battery' as const, d: 'M118 360 H278 Q290 360 290 348 V270', watts: batteryWatts },
     { kind: 'load' as const, d: 'M482 360 H322 Q310 360 310 348 V270', watts: data?.load_power },
   ]
 
@@ -693,10 +695,10 @@ function InverterView({ data, bms, now }: { data: InverterData | null; bms: Pack
 
           <rect x="62" y="318" width="52" height="66" rx="6" className="battery-shell" />
           <rect x="62" y={384 - (66 * soc) / 100} width="52" height={(66 * soc) / 100} rx="6" className="battery-fill" />
-          <text className="flow-value" x="150" y="326">{watts(data?.battery_power)}</text>
-          <text className="flow-label" x="150" y="347">Battery</text>
+          <text className="flow-value" x="150" y="326">{watts(batteryWatts)}</text>
+          <text className="flow-label" x="150" y="347">Battery{bms ? ' (BMS)' : ''}</text>
           <text className="flow-soc" x="150" y="384">
-            SOC {formatNumber(bms?.soc ?? data?.battery_soc)}% · {data?.battery_power === undefined ? '--' : data.battery_power > 10 ? 'charging' : data.battery_power < -10 ? 'discharging' : 'idle'}
+            SOC {formatNumber(bms?.soc ?? data?.battery_soc)}% · {batteryWatts === undefined ? '--' : batteryWatts > 10 ? 'charging' : batteryWatts < -10 ? 'discharging' : 'idle'}
           </text>
 
           <g transform="translate(500 310)" className="icon-outline">
@@ -723,7 +725,8 @@ function InverterView({ data, bms, now }: { data: InverterData | null; bms: Pack
           ['PV total', `${formatNumber(data?.pv_energy_total, 2)}kWh`],
         ]} />
         <InfoCard title="Battery information" rows={[
-          ['Battery power', `${formatNumber(data?.battery_power)}W`],
+          ['Battery power (BMS)', bms ? `${formatNumber(bms.power)}W` : '--'],
+          ['Battery power (inverter)', `${formatNumber(data?.battery_power)}W`],
           ['Battery voltage', `${formatNumber(data?.battery_voltage, 1)}V`],
           ['Battery current', `${formatNumber(data?.battery_current, 1)}A`],
           ['SOC (BMS)', bms ? `${formatNumber(bms.soc)}%` : '--'],
