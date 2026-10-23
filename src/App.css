@@ -557,6 +557,189 @@ button {
   padding: 18px 22px;
 }
 
+.view-tabs a {
+  padding: 8px 16px;
+  border: 1px solid rgba(85, 170, 220, 0.2);
+  border-radius: 6px;
+  color: #dbe8ef;
+  background: #0d2032;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.view-tabs a.active {
+  border-color: rgba(45, 155, 255, 0.75);
+  background: linear-gradient(180deg, #176ed0, #104b91);
+}
+
+.inverter-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.flow-panel {
+  position: sticky;
+  top: 12px;
+}
+
+.flow-diagram {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 8px;
+}
+
+.flow-line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0.35;
+}
+
+.flow-dots {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 0 28;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.flow-dots.in,
+.flow-dots.out {
+  opacity: 1;
+  animation: energy-flow 1.2s linear infinite;
+}
+
+.flow-dots.out {
+  animation-direction: reverse;
+}
+
+@keyframes energy-flow {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+
+.pv-line {
+  stroke: #37b7ff;
+}
+
+.grid-line {
+  stroke: #6b7c8c;
+}
+
+.battery-line {
+  stroke: #35eb86;
+}
+
+.load-line {
+  stroke: #ff7a59;
+}
+
+.inverter-box {
+  fill: #0d2032;
+  stroke: rgba(85, 170, 220, 0.35);
+}
+
+.inverter-face {
+  fill: #c9d5df;
+  stroke: #6b7c8c;
+}
+
+.inverter-screen {
+  fill: #07111c;
+}
+
+.pv-panel {
+  fill: #1c3a5e;
+  stroke: #37b7ff;
+  stroke-width: 1.5;
+}
+
+.icon-stand {
+  fill: #6b7c8c;
+}
+
+.icon-outline {
+  fill: none;
+  stroke: #a7b6c7;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.battery-shell {
+  fill: #0d2032;
+  stroke: #6b7c8c;
+}
+
+.battery-fill {
+  fill: #35eb86;
+  opacity: 0.85;
+}
+
+.flow-value {
+  fill: #f3f8fb;
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', Consolas, monospace;
+  font-size: 34px;
+  font-weight: 700;
+}
+
+.flow-label {
+  fill: #a7b6c7;
+  font-size: 15px;
+}
+
+.flow-soc {
+  fill: #35eb86;
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', Consolas, monospace;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.flow-value.end,
+.flow-label.end {
+  text-anchor: end;
+}
+
+.info-cards {
+  display: grid;
+  gap: 12px;
+}
+
+.info-card h3 {
+  margin: 0 0 14px;
+}
+
+.info-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  margin: 0;
+}
+
+.info-card dt {
+  color: #a7b6c7;
+  font-size: 0.82rem;
+}
+
+.info-card dd {
+  margin: 3px 0 0;
+  color: #37b7ff;
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', Consolas, monospace;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-dots.in,
+  .flow-dots.out {
+    animation: none;
+  }
+}
+
 .inverter-status {
   display: flex;
   align-items: center;
@@ -865,8 +1048,13 @@ button:focus-visible {
 @media (max-width: 1180px) {
   .battery-deck,
   .dashboard-grid,
-  .command-panel {
+  .command-panel,
+  .inverter-view {
     grid-template-columns: 1fr;
+  }
+
+  .flow-panel {
+    position: static;
   }
 
   .panel-header {

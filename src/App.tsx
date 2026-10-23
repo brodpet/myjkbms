@@ -271,19 +271,30 @@ function DashboardLogo() {
   )
 }
 
-function HeaderBar({ status, tone, now }: {
+type View = 'battery' | 'inverter'
+
+function viewFromHash(): View {
+  return window.location.hash === '#inverter' ? 'inverter' : 'battery'
+}
+
+function HeaderBar({ status, tone, now, view }: {
   status: string
   tone: string
   now: number
+  view: View
 }) {
   return (
     <header className="topbar">
       <div className="title-cluster">
         <DashboardLogo />
         <i />
-        <h1>JK BMS Command Deck</h1>
+        <h1>{view === 'inverter' ? 'Inverter Command Deck' : 'JK BMS Command Deck'}</h1>
       </div>
       <div className="top-actions">
+        <nav className="pack-tabs view-tabs" aria-label="Dashboard views">
+          <a className={view === 'battery' ? 'active' : ''} href="#battery">Battery</a>
+          <a className={view === 'inverter' ? 'active' : ''} href="#inverter">Inverter</a>
+        </nav>
         <StatusPill label={status} tone={tone} />
         <span className="clock-readout">{formatTime(now)}</span>
       </div>
@@ -604,6 +615,137 @@ function InverterPanel({ data, now }: { data: InverterData | null; now: number }
   )
 }
 
+// Direction of energy on a flow line, relative to the inverter (lines are drawn device -> inverter)
+function flowDirection(kind: 'pv' | 'battery' | 'load', watts: number | undefined) {
+  if (watts === undefined || Math.abs(watts) < 10) return ''
+  if (kind === 'pv') return 'in'
+  if (kind === 'load') return 'out'
+  return watts > 0 ? 'out' : 'in'
+}
+
+function InfoCard({ title, rows }: { title: string; rows: [string, string][] }) {
+  return (
+    <section className="side-panel info-card">
+      <h3>{title}</h3>
+      <dl>
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
+}
+
+function InverterView({ data, bms, now }: { data: InverterData | null; bms: PackData | undefined; now: number }) {
+  const age = data ? Math.floor((now - data.updatedAt) / 1000) : null
+  const stale = age !== null && age > STALE_SECONDS
+  const status = !data ? { label: 'Waiting', tone: 'muted' } : stale ? { label: 'Stale', tone: 'danger' } : { label: 'Live', tone: 'good' }
+  const watts = (value: number | undefined) => (value === undefined ? '-- W' : `${Math.round(Math.abs(value))} W`)
+  const soc = Math.max(0, Math.min(100, bms?.soc ?? data?.battery_soc ?? 0))
+  const lines = [
+    { kind: 'pv' as const, d: 'M118 112 H278 Q290 112 290 124 V170', watts: data?.pv_power },
+    { kind: 'battery' as const, d: 'M118 360 H278 Q290 360 290 348 V270', watts: data?.battery_power },
+    { kind: 'load' as const, d: 'M482 360 H322 Q310 360 310 348 V270', watts: data?.load_power },
+  ]
+
+  return (
+    <div className="inverter-view">
+      <section className="pack-panel flow-panel">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">ECG Solax 12kW · 72260718000013</span>
+            <h2>Energy flow</h2>
+          </div>
+          <div className="inverter-status">
+            <span>{age !== null ? `Last ${age}s ago` : 'No reading yet'}</span>
+            <StatusPill label={status.label} tone={status.tone} />
+          </div>
+        </div>
+
+        <svg className="flow-diagram" viewBox="0 0 600 440" role="img" aria-label="Energy flow between solar, battery, house and grid">
+          <path className="flow-line grid-line" d="M482 112 H322 Q310 112 310 124 V170" />
+          {lines.map(line => (
+            <g key={line.kind}>
+              <path className={`flow-line ${line.kind}-line`} d={line.d} />
+              <path className={`flow-dots ${line.kind}-line ${flowDirection(line.kind, line.watts)}`} d={line.d} />
+            </g>
+          ))}
+
+          <rect x="258" y="166" width="84" height="108" rx="10" className="inverter-box" />
+          <rect x="272" y="178" width="56" height="84" rx="6" className="inverter-face" />
+          <rect x="295" y="192" width="10" height="18" rx="4" className="inverter-screen" />
+
+          <g transform="translate(40 60)">
+            <polygon points="10,30 60,0 90,20 40,52" className="pv-panel" />
+            <rect x="44" y="50" width="6" height="18" className="icon-stand" />
+          </g>
+          <text className="flow-value" x="150" y="78">{watts(data?.pv_power)}</text>
+          <text className="flow-label" x="150" y="99">Solar PV</text>
+
+          <g transform="translate(500 40)" className="icon-outline">
+            <path d="M30 0 L14 80 M30 0 L46 80 M20 50 H40 M17 65 H43 M24 25 H36 M8 22 H52 M22 35 L40 50 M38 35 L20 50" />
+          </g>
+          <text className="flow-value end" x="482" y="78">Off-grid</text>
+          <text className="flow-label end" x="482" y="99">Grid</text>
+
+          <rect x="62" y="318" width="52" height="66" rx="6" className="battery-shell" />
+          <rect x="62" y={384 - (66 * soc) / 100} width="52" height={(66 * soc) / 100} rx="6" className="battery-fill" />
+          <text className="flow-value" x="150" y="326">{watts(data?.battery_power)}</text>
+          <text className="flow-label" x="150" y="347">Battery</text>
+          <text className="flow-soc" x="150" y="384">
+            SOC {formatNumber(bms?.soc ?? data?.battery_soc)}% · {data?.battery_power === undefined ? '--' : data.battery_power > 10 ? 'charging' : data.battery_power < -10 ? 'discharging' : 'idle'}
+          </text>
+
+          <g transform="translate(500 310)" className="icon-outline">
+            <polygon points="10,30 40,8 70,30 70,70 10,70" />
+            <rect x="34" y="54" width="12" height="16" />
+          </g>
+          <text className="flow-value end" x="482" y="326">{watts(data?.load_power)}</text>
+          <text className="flow-label end" x="482" y="347">House load</text>
+        </svg>
+      </section>
+
+      <div className="info-cards">
+        <InfoCard title="General information" rows={[
+          ['Device SN', '72260718000013'],
+          ['Model', 'CFN12KS-AH2'],
+          ['Connection', 'ESP32 Bluetooth'],
+          ['Last update', age !== null ? `${age}s ago` : '--'],
+        ]} />
+        <InfoCard title="PV information" rows={[
+          ['PV voltage', `${formatNumber(data?.pv_voltage, 1)}V`],
+          ['PV current', `${formatNumber(data?.pv_current, 2)}A`],
+          ['PV power', `${formatNumber(data?.pv_power)}W`],
+          ['PV today', `${formatNumber(data?.pv_energy_today, 2)}kWh`],
+          ['PV total', `${formatNumber(data?.pv_energy_total, 2)}kWh`],
+        ]} />
+        <InfoCard title="Battery information" rows={[
+          ['Battery power', `${formatNumber(data?.battery_power)}W`],
+          ['Battery voltage', `${formatNumber(data?.battery_voltage, 1)}V`],
+          ['Battery current', `${formatNumber(data?.battery_current, 1)}A`],
+          ['SOC (BMS)', bms ? `${formatNumber(bms.soc)}%` : '--'],
+          ['SOC (inverter est.)', `${formatNumber(data?.battery_soc)}%`],
+          ['Temperature (BMS)', bms ? `${formatNumber(bms.temp1, 1)}C / ${formatNumber(bms.temp2, 1)}C` : '--'],
+        ]} />
+        <InfoCard title="Load information" rows={[
+          ['Load power', `${formatNumber(data?.load_power)}W`],
+          ['Output voltage', `${formatNumber(data?.load_voltage, 1)}V`],
+          ['Output frequency', `${formatNumber(data?.load_frequency, 2)}Hz`],
+          ['Load today', `${formatNumber(data?.load_energy_today, 2)}kWh`],
+          ['Load total', `${formatNumber(data?.load_energy_total, 2)}kWh`],
+        ]} />
+        <InfoCard title="Grid information" rows={[
+          ['Grid', 'Off-grid'],
+          ['Grid power', '0W'],
+        ]} />
+      </div>
+    </div>
+  )
+}
+
 function TrendsPanel({ data, totalSoc, totalPower }: { data: PackData | undefined; totalSoc: number | null; totalPower: number }) {
   return (
     <aside className="side-panel trends-panel">
@@ -634,6 +776,13 @@ export default function App() {
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [weatherStatus, setWeatherStatus] = useState('Loading Cataingan weather')
   const [inverter, setInverter] = useState<InverterData | null>(null)
+  const [view, setView] = useState<View>(viewFromHash)
+
+  useEffect(() => {
+    const onHashChange = () => setView(viewFromHash())
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
   const clientRef = useRef<mqtt.MqttClient | null>(null)
 
   useEffect(() => {
@@ -771,8 +920,12 @@ export default function App() {
 
   return (
     <main className="dashboard-shell">
-      <HeaderBar status={connectionLabel} tone={connectionTone} now={now} />
+      <HeaderBar status={connectionLabel} tone={connectionTone} now={now} view={view} />
 
+      {view === 'inverter' ? (
+        <InverterView data={inverter} bms={aggregatePack} now={now} />
+      ) : (
+      <>
       <BatteryDeck averageVoltage={averageVoltage} totalSoc={totalSoc} totalCurrent={totalCurrent} totalPower={totalPower} remainingAh={totalCapacity} weather={weather} weatherStatus={weatherStatus} />
 
       <section className="summary-grid" aria-label="Battery summary">
@@ -797,6 +950,8 @@ export default function App() {
           <TrendsPanel data={selectedPackData} totalSoc={totalSoc} totalPower={totalPower} />
         </div>
       </div>
+      </>
+      )}
     </main>
   )
 }
