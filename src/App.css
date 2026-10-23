@@ -148,7 +148,8 @@ button {
 .battery-deck,
 .metric-tile,
 .pack-panel,
-.side-panel {
+.side-panel,
+.inverter-panel {
   border: 1px solid rgba(85, 170, 220, 0.18);
   border-radius: 8px;
   background:
@@ -551,6 +552,26 @@ button {
   gap: 10px;
 }
 
+.inverter-panel {
+  margin-top: 10px;
+  padding: 18px 22px;
+}
+
+.inverter-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #a7b6c7;
+  font-size: 0.82rem;
+}
+
+.inverter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
 .pack-tabs button {
   min-width: 112px;
   padding: 12px 18px;
@@ -905,8 +926,13 @@ button:focus-visible {
     padding: 14px;
   }
 
-  .summary-grid {
+  .summary-grid,
+  .inverter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .inverter-panel {
+    padding: 14px;
   }
 
   .metric-tile {

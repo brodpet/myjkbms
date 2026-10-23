@@ -14,6 +14,7 @@ const WEATHER_LATITUDE = 12.0
 const WEATHER_LONGITUDE = 123.98333
 const WEATHER_LOCATION = 'Cataingan, Masbate'
 const WEATHER_REFRESH_MS = 5 * 60 * 1000
+const INVERTER_TOPIC = 'ecgsolax/inverter/state'
 const PACKS = ['LiFePO4-48V']
 const PACK_LABELS: Record<string, string> = {
   'LiFePO4-48V': 'LiFePO4 48V',
@@ -54,6 +55,16 @@ interface PackData {
 }
 
 type PackMap = Record<string, PackData>
+
+// Published by the ECGSolax monitor (C:\Users\BRODPET\BRODPETCODE\ECGSolax), read over Bluetooth from the inverter
+interface InverterData {
+  updatedAt: string
+  pv: { power: number | null; strings?: { voltage: number | null; current: number | null; power: number | null }[] }
+  battery: { power: number | null; soc: number | null; voltage: number | null; current: number | null }
+  load: { power: number | null; voltage?: number | null; frequency?: number | null }
+  grid: { power?: number | null }
+  energy?: { pvToday?: number | null; pvTotal?: number | null; loadToday?: number | null; loadTotal?: number | null }
+}
 
 interface WeatherData {
   temperature: number
@@ -538,6 +549,63 @@ function AlertsPanel({ packs, now }: { packs: PackMap; now: number }) {
   )
 }
 
+function InverterPanel({ data, now }: { data: InverterData | null; now: number }) {
+  const age = data ? Math.floor((now - Date.parse(data.updatedAt)) / 1000) : null
+  const stale = age !== null && age > STALE_SECONDS
+  const status = !data ? { label: 'Waiting', tone: 'muted' } : stale ? { label: 'Stale', tone: 'danger' } : { label: 'Live', tone: 'good' }
+  const pvString = data?.pv.strings?.find(item => (item.power ?? 0) > 0)
+  const batteryPower = data?.battery.power ?? null
+  const batteryState = batteryPower === null ? 'Waiting' : batteryPower > 50 ? 'Charging' : batteryPower < -50 ? 'Discharging' : 'Idle'
+  const gridPower = data?.grid.power ?? null
+
+  return (
+    <section className="inverter-panel" aria-label="Inverter">
+      <div className="section-heading">
+        <div>
+          <span className="eyebrow">ECG Solax 12kW · Bluetooth</span>
+          <h3>Inverter</h3>
+        </div>
+        <div className="inverter-status">
+          <span>{age !== null ? `Last ${age}s ago` : 'No reading yet'}</span>
+          <StatusPill label={status.label} tone={status.tone} />
+        </div>
+      </div>
+
+      {data ? (
+        <div className="inverter-grid">
+          <MetricTile
+            label="Solar PV"
+            value={`${formatNumber(data.pv.power)}W`}
+            helper={pvString ? `${formatNumber(pvString.voltage, 1)}V / ${formatNumber(pvString.current, 2)}A` : 'No PV input'}
+            tone={(data.pv.power ?? 0) > 0 ? 'good' : ''}
+          />
+          <MetricTile
+            label="Battery (inverter)"
+            value={`${batteryPower !== null && batteryPower > 0 ? '+' : ''}${formatNumber(batteryPower)}W`}
+            helper={`${batteryState} · ${formatNumber(data.battery.voltage, 1)}V`}
+            tone={batteryPower !== null && batteryPower < -50 ? 'warning' : 'good'}
+          />
+          <MetricTile
+            label="House load"
+            value={`${formatNumber(data.load.power)}W`}
+            helper={`${formatNumber(data.load.voltage, 0)}V / ${formatNumber(data.load.frequency, 1)}Hz`}
+          />
+          <MetricTile label="Grid" value={gridPower !== null ? `${formatNumber(gridPower)}W` : 'Off-grid'} helper="Not connected" />
+          <MetricTile label="PV today" value={`${formatNumber(data.energy?.pvToday, 2)}kWh`} helper={`Total ${formatNumber(data.energy?.pvTotal, 1)}kWh`} />
+          <MetricTile label="Load today" value={`${formatNumber(data.energy?.loadToday, 2)}kWh`} helper={`Total ${formatNumber(data.energy?.loadTotal, 1)}kWh`} />
+          <MetricTile label="Inverter SOC" value={`${formatNumber(data.battery.soc)}%`} helper="Voltage estimate, BMS SOC is above" />
+          <MetricTile label="Battery current" value={`${formatNumber(data.battery.current, 1)}A`} helper="Inverter side, - is charging" />
+        </div>
+      ) : (
+        <div className="empty-panel">
+          <strong>Waiting for inverter data</strong>
+          <span>The ECGSolax monitor on the PC publishes readings while it is connected over Bluetooth.</span>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function TrendsPanel({ data, totalSoc, totalPower }: { data: PackData | undefined; totalSoc: number | null; totalPower: number }) {
   return (
     <aside className="side-panel trends-panel">
@@ -567,6 +635,7 @@ export default function App() {
   const [selectedView, setSelectedView] = useState('all')
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [weatherStatus, setWeatherStatus] = useState('Loading Cataingan weather')
+  const [inverter, setInverter] = useState<InverterData | null>(null)
   const clientRef = useRef<mqtt.MqttClient | null>(null)
 
   useEffect(() => {
@@ -644,6 +713,7 @@ export default function App() {
     client.on('connect', () => {
       setStatus('Connected')
       client.subscribe('jk-bms/sensor/#')
+      client.subscribe(INVERTER_TOPIC)
     })
 
     client.on('disconnect', () => setStatus('Disconnected'))
@@ -651,6 +721,15 @@ export default function App() {
     client.on('reconnect', () => setStatus('Reconnecting...'))
 
     client.on('message', (topic, payload) => {
+      if (topic === INVERTER_TOPIC) {
+        try {
+          setInverter(JSON.parse(payload.toString()))
+        } catch {
+          // Ignore malformed inverter payloads
+        }
+        return
+      }
+
       const parsed = parseSensorTopic(topic)
       const value = Number(payload.toString())
       if (!parsed?.pack || Number.isNaN(value)) return
@@ -707,6 +786,8 @@ export default function App() {
         <MetricTile label="Remaining" value={`${formatNumber(totalCapacity, 1)}Ah / ${TOTAL_BATTERY_CAPACITY_AH}Ah`} helper="Remaining / total capacity" />
         <MetricTile label="Online packs" value={`${onlinePacks}/${PACKS.length}`} helper="Fresh within 120s" />
       </section>
+
+      <InverterPanel data={inverter} now={now} />
 
       <div className="dashboard-grid">
         <PackPanel
