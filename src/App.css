@@ -579,11 +579,6 @@ button {
   align-items: start;
 }
 
-.flow-panel {
-  position: sticky;
-  top: 12px;
-}
-
 .flow-diagram {
   display: block;
   width: 100%;
@@ -738,6 +733,138 @@ button {
   .flow-dots.out {
     animation: none;
   }
+}
+
+.energy-panel {
+  grid-column: 1 / -1;
+}
+
+.view-tabs button {
+  padding: 8px 16px;
+  border: 1px solid rgba(85, 170, 220, 0.2);
+  border-radius: 6px;
+  color: #dbe8ef;
+  background: #0d2032;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.view-tabs button.active {
+  border-color: rgba(45, 155, 255, 0.75);
+  background: linear-gradient(180deg, #176ed0, #104b91);
+}
+
+.energy-note {
+  display: block;
+  margin-top: 6px;
+  color: #a7b6c7;
+  font-size: 0.82rem;
+}
+
+.energy-note.centered {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 0.75rem;
+}
+
+.energy-date {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 18px 0 6px;
+  color: #a7b6c7;
+  font-size: 0.85rem;
+}
+
+.energy-date input {
+  padding: 6px 10px;
+  border: 1px solid rgba(85, 170, 220, 0.25);
+  border-radius: 6px;
+  color: #f3f8fb;
+  background: #0d2032;
+  color-scheme: dark;
+  font: inherit;
+}
+
+.energy-totals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0 8px;
+  text-align: center;
+}
+
+.energy-totals strong {
+  display: block;
+  color: #f3f8fb;
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', Consolas, monospace;
+  font-size: clamp(1.4rem, 3vw, 2.3rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.energy-totals span {
+  color: #a7b6c7;
+  font-size: 0.8rem;
+}
+
+.energy-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 8px;
+}
+
+.chart-grid {
+  stroke: rgba(85, 170, 220, 0.14);
+  stroke-dasharray: 5 5;
+}
+
+.chart-axis {
+  fill: #a7b6c7;
+  font-size: 12px;
+}
+
+.chart-line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chart-point {
+  fill: #07111c;
+  stroke-width: 2.5;
+}
+
+.energy-pv {
+  stroke: #35eb86;
+}
+
+.energy-load {
+  stroke: #37b7ff;
+}
+
+.energy-legend {
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.energy-legend i.energy-pv {
+  background: #35eb86;
+}
+
+.energy-legend i.energy-load {
+  background: #37b7ff;
+}
+
+.energy-legend i.energy-purchased {
+  background: #ffcd4a;
+}
+
+.energy-legend i.energy-sold {
+  background: #b28cff;
 }
 
 .inverter-status {
@@ -1053,10 +1180,6 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .flow-panel {
-    position: static;
-  }
-
   .panel-header {
     flex-direction: column;
   }
@@ -1115,7 +1238,8 @@ button:focus-visible {
   }
 
   .summary-grid,
-  .inverter-grid {
+  .inverter-grid,
+  .energy-totals {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

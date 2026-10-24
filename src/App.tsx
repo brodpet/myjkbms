@@ -15,6 +15,8 @@ const WEATHER_LONGITUDE = 123.98333
 const WEATHER_LOCATION = 'Cataingan, Masbate'
 const WEATHER_REFRESH_MS = 5 * 60 * 1000
 const INVERTER_SENSOR_PREFIX = 'jk-bms/sensor/inverter_'
+// Retained JSON from the energy recorder on the Oracle VM (BRODPETCODE\energy-recorder)
+const ENERGY_HISTORY_TOPIC = 'jk-bms/history/energy'
 const PACKS = ['LiFePO4-48V']
 const PACK_LABELS: Record<string, string> = {
   'LiFePO4-48V': 'LiFePO4 48V',
@@ -65,6 +67,19 @@ type InverterField =
   | 'pv_energy_today' | 'pv_energy_total' | 'load_energy_today' | 'load_energy_total'
 
 type InverterData = Partial<Record<InverterField, number>> & { updatedAt: number }
+
+interface EnergyDay {
+  pv: number
+  load: number
+  // Cumulative kWh at the end of each local hour, null before recording started
+  hours: { pv: (number | null)[]; load: (number | null)[] }
+}
+
+interface EnergyHistory {
+  updatedAt: string
+  counters: Partial<Record<'pvMonth' | 'pvYear' | 'pvTotal' | 'loadMonth' | 'loadYear' | 'loadTotal', number>>
+  days: Record<string, EnergyDay>
+}
 
 interface WeatherData {
   temperature: number
@@ -623,6 +638,173 @@ function flowDirection(kind: 'pv' | 'battery' | 'load', watts: number | undefine
   return watts > 0 ? 'out' : 'in'
 }
 
+type EnergyPeriod = 'day' | 'month' | 'year' | 'total'
+type EnergySeries = { labels: string[]; pv: (number | null)[]; load: (number | null)[]; totals: { pv: number; load: number } | null }
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function localDateString(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function sumDays(history: EnergyHistory, prefix: string) {
+  const days = Object.entries(history.days).filter(([key]) => key.startsWith(prefix))
+  return days.length
+    ? { pv: days.reduce((sum, [, day]) => sum + day.pv, 0), load: days.reduce((sum, [, day]) => sum + day.load, 0) }
+    : null
+}
+
+function energySeries(history: EnergyHistory | null, period: EnergyPeriod, date: string): EnergySeries {
+  const empty = { pv: [], load: [], totals: null }
+  const today = localDateString()
+  if (period === 'day') {
+    const day = history?.days[date]
+    return {
+      labels: Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`),
+      pv: day?.hours.pv ?? [],
+      load: day?.hours.load ?? [],
+      totals: day ? { pv: day.pv, load: day.load } : null,
+    }
+  }
+  if (!history) return { labels: [], ...empty }
+
+  const counters = history.counters
+  if (period === 'month') {
+    const [year, month] = date.split('-').map(Number)
+    const daysInMonth = new Date(year, month, 0).getDate()
+    const keys = Array.from({ length: daysInMonth }, (_, i) => `${date.slice(0, 7)}-${String(i + 1).padStart(2, '0')}`)
+    const current = date.slice(0, 7) === today.slice(0, 7) && counters.pvMonth !== undefined && counters.loadMonth !== undefined
+    return {
+      labels: keys.map(key => key.slice(8)),
+      pv: keys.map(key => history.days[key]?.pv ?? null),
+      load: keys.map(key => history.days[key]?.load ?? null),
+      totals: current ? { pv: counters.pvMonth!, load: counters.loadMonth! } : sumDays(history, date.slice(0, 7)),
+    }
+  }
+  if (period === 'year') {
+    const months = MONTH_NAMES.map((_, i) => `${date.slice(0, 4)}-${String(i + 1).padStart(2, '0')}`)
+    const current = date.slice(0, 4) === today.slice(0, 4) && counters.pvYear !== undefined && counters.loadYear !== undefined
+    return {
+      labels: MONTH_NAMES,
+      pv: months.map(month => sumDays(history, month)?.pv ?? null),
+      load: months.map(month => sumDays(history, month)?.load ?? null),
+      totals: current ? { pv: counters.pvYear!, load: counters.loadYear! } : sumDays(history, date.slice(0, 4)),
+    }
+  }
+  const years = [...new Set(Object.keys(history.days).map(key => key.slice(0, 4)))].sort()
+  return {
+    labels: years,
+    pv: years.map(year => sumDays(history, year)?.pv ?? null),
+    load: years.map(year => sumDays(history, year)?.load ?? null),
+    totals: counters.pvTotal !== undefined && counters.loadTotal !== undefined ? { pv: counters.pvTotal, load: counters.loadTotal } : sumDays(history, ''),
+  }
+}
+
+function EnergyChart({ labels, lines }: { labels: string[]; lines: { className: string; values: (number | null)[] }[] }) {
+  const width = 900
+  const height = 300
+  const left = 48
+  const right = 18
+  const top = 16
+  const bottom = 40
+  const max = Math.max(1, ...lines.flatMap(line => line.values.filter((value): value is number => value !== null)))
+  const step = max <= 5 ? 1 : max <= 20 ? 5 : max <= 50 ? 10 : Math.ceil(max / 40) * 10
+  const upper = Math.ceil(max / step) * step
+  const x = (index: number) => left + (labels.length <= 1 ? (width - left - right) / 2 : (index * (width - left - right)) / (labels.length - 1))
+  const y = (value: number) => top + (1 - value / upper) * (height - top - bottom)
+  const labelEvery = Math.ceil(labels.length / 8)
+
+  return (
+    <svg className="energy-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Energy history chart">
+      {Array.from({ length: upper / step + 1 }, (_, i) => i * step).map(value => (
+        <g key={value}>
+          <line className="chart-grid" x1={left} x2={width - right} y1={y(value)} y2={y(value)} />
+          <text className="chart-axis" x={left - 10} y={y(value) + 4} textAnchor="end">{value}</text>
+        </g>
+      ))}
+      {labels.map((label, index) => (index % labelEvery === 0 || index === labels.length - 1) && (
+        <text className="chart-axis" key={label} x={x(index)} y={height - 14} textAnchor="middle">{label}</text>
+      ))}
+      {lines.map(line => {
+        const points = line.values.map((value, index) => (value === null ? null : [x(index), y(value)] as const))
+        return (
+          <g className={line.className} key={line.className}>
+            <polyline className="chart-line" points={points.filter(point => point !== null).map(point => point.join(',')).join(' ')} />
+            {points.map((point, index) => point && <circle className="chart-point" cx={point[0]} cy={point[1]} r={4} key={index} />)}
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+function EnergyPanel({ history }: { history: EnergyHistory | null }) {
+  const [period, setPeriod] = useState<EnergyPeriod>('day')
+  const [date, setDate] = useState(() => localDateString())
+  const series = energySeries(history, period, date)
+  const firstDay = history ? Object.keys(history.days).sort()[0] : undefined
+  const totals: [string, number | undefined][] = [
+    ['PV generation', series.totals?.pv],
+    ['Load consumption', series.totals?.load],
+    ['Electricity purchased', series.totals ? 0 : undefined],
+    ['Electricity sold', series.totals ? 0 : undefined],
+  ]
+
+  return (
+    <section className="pack-panel energy-panel" aria-label="Energy consumption">
+      <div className="panel-header">
+        <div>
+          <span className="eyebrow">History</span>
+          <h2>Energy consumption</h2>
+          <small className="energy-note">Generation and usage over time. Off-grid, so nothing is bought or sold.</small>
+        </div>
+        <nav className="pack-tabs view-tabs" aria-label="Energy period">
+          {(['day', 'month', 'year', 'total'] as const).map(value => (
+            <button className={period === value ? 'active' : ''} key={value} onClick={() => setPeriod(value)}>
+              {value[0].toUpperCase() + value.slice(1)}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {period !== 'total' && (
+        <label className="energy-date">
+          Date
+          <input type="date" value={date} max={localDateString()} onChange={event => event.target.value && setDate(event.target.value)} />
+        </label>
+      )}
+
+      <div className="energy-totals">
+        {totals.map(([label, value]) => (
+          <div key={label}>
+            <strong>{formatNumber(value, 2)}</strong>
+            <span>{label} (kWh)</span>
+          </div>
+        ))}
+      </div>
+
+      <EnergyChart
+        labels={series.labels}
+        lines={[
+          { className: 'energy-pv', values: series.pv },
+          { className: 'energy-load', values: series.load },
+        ]}
+      />
+      <div className="cell-legend energy-legend">
+        <span><i className="energy-pv" />PV generation</span>
+        <span><i className="energy-load" />Load consumption</span>
+        <span><i className="energy-purchased" />Electricity purchased</span>
+        <span><i className="energy-sold" />Electricity sold</span>
+      </div>
+      <small className="energy-note centered">
+        {history
+          ? `Recorded every hour on the server since ${firstDay ?? 'today'}. Current month, year and total come from the inverter's own counters.`
+          : 'Waiting for energy history from the server.'}
+      </small>
+    </section>
+  )
+}
+
 function InfoCard({ title, rows }: { title: string; rows: [string, string][] }) {
   return (
     <section className="side-panel info-card">
@@ -639,7 +821,12 @@ function InfoCard({ title, rows }: { title: string; rows: [string, string][] }) 
   )
 }
 
-function InverterView({ data, bms, now }: { data: InverterData | null; bms: PackData | undefined; now: number }) {
+function InverterView({ data, bms, history, now }: {
+  data: InverterData | null
+  bms: PackData | undefined
+  history: EnergyHistory | null
+  now: number
+}) {
   const age = data ? Math.floor((now - data.updatedAt) / 1000) : null
   const stale = age !== null && age > STALE_SECONDS
   const status = !data ? { label: 'Waiting', tone: 'muted' } : stale ? { label: 'Stale', tone: 'danger' } : { label: 'Live', tone: 'good' }
@@ -751,6 +938,8 @@ function InverterView({ data, bms, now }: { data: InverterData | null; bms: Pack
           ['Grid power', '0W'],
         ]} />
       </div>
+
+      <EnergyPanel history={history} />
     </div>
   )
 }
@@ -785,6 +974,7 @@ export default function App() {
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [weatherStatus, setWeatherStatus] = useState('Loading Cataingan weather')
   const [inverter, setInverter] = useState<InverterData | null>(null)
+  const [energyHistory, setEnergyHistory] = useState<EnergyHistory | null>(null)
   const [view, setView] = useState<View>(viewFromHash)
 
   useEffect(() => {
@@ -868,7 +1058,7 @@ export default function App() {
 
     client.on('connect', () => {
       setStatus('Connected')
-      client.subscribe('jk-bms/sensor/#')
+      client.subscribe(['jk-bms/sensor/#', ENERGY_HISTORY_TOPIC])
     })
 
     client.on('disconnect', () => setStatus('Disconnected'))
@@ -876,6 +1066,15 @@ export default function App() {
     client.on('reconnect', () => setStatus('Reconnecting...'))
 
     client.on('message', (topic, payload) => {
+      if (topic === ENERGY_HISTORY_TOPIC) {
+        try {
+          setEnergyHistory(JSON.parse(payload.toString()))
+        } catch {
+          // Keep the last good history if a message is malformed
+        }
+        return
+      }
+
       if (topic.startsWith(INVERTER_SENSOR_PREFIX) && topic.endsWith('/state')) {
         const field = topic.slice(INVERTER_SENSOR_PREFIX.length, -'/state'.length) as InverterField
         const value = Number(payload.toString())
@@ -932,7 +1131,7 @@ export default function App() {
       <HeaderBar status={connectionLabel} tone={connectionTone} now={now} view={view} />
 
       {view === 'inverter' ? (
-        <InverterView data={inverter} bms={aggregatePack} now={now} />
+        <InverterView data={inverter} bms={aggregatePack} history={energyHistory} now={now} />
       ) : (
       <>
       <BatteryDeck averageVoltage={averageVoltage} totalSoc={totalSoc} totalCurrent={totalCurrent} totalPower={totalPower} remainingAh={totalCapacity} weather={weather} weatherStatus={weatherStatus} />
