@@ -700,7 +700,21 @@ function energySeries(history: EnergyHistory | null, period: EnergyPeriod, date:
   }
 }
 
-function EnergyChart({ labels, lines }: { labels: string[]; lines: { className: string; values: (number | null)[] }[] }) {
+// kWh produced/used during slot `index` of a cumulative day series (counters reset at midnight)
+function hourDelta(values: (number | null)[], index: number) {
+  const value = values[index]
+  if (value === null || value === undefined) return null
+  if (index === 0) return value
+  const previous = values[index - 1]
+  return previous === null || previous === undefined ? null : Math.max(0, value - previous)
+}
+
+function EnergyChart({ labels, lines, tooltip }: {
+  labels: string[]
+  lines: { className: string; values: (number | null)[] }[]
+  tooltip: (index: number) => { title: string; rows: { className: string; text: string }[] } | null
+}) {
+  const [selected, setSelected] = useState<number | null>(null)
   const width = 900
   const height = 300
   const left = 48
@@ -713,9 +727,14 @@ function EnergyChart({ labels, lines }: { labels: string[]; lines: { className: 
   const x = (index: number) => left + (labels.length <= 1 ? (width - left - right) / 2 : (index * (width - left - right)) / (labels.length - 1))
   const y = (value: number) => top + (1 - value / upper) * (height - top - bottom)
   const labelEvery = Math.ceil(labels.length / 8)
+  const column = labels.length > 1 ? (width - left - right) / (labels.length - 1) : width - left - right
+  const tip = selected !== null && selected < labels.length ? tooltip(selected) : null
+  const tipWidth = 250
+  const tipHeight = 30 + (tip?.rows.length ?? 0) * 22
+  const tipX = selected !== null && x(selected) + 14 + tipWidth > width - right ? x(selected) - 14 - tipWidth : x(selected ?? 0) + 14
 
   return (
-    <svg className="energy-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Energy history chart">
+    <svg className="energy-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Energy history chart, hover or tap a point for details" onMouseLeave={() => setSelected(null)}>
       {Array.from({ length: upper / step + 1 }, (_, i) => i * step).map(value => (
         <g key={value}>
           <line className="chart-grid" x1={left} x2={width - right} y1={y(value)} y2={y(value)} />
@@ -730,10 +749,32 @@ function EnergyChart({ labels, lines }: { labels: string[]; lines: { className: 
         return (
           <g className={line.className} key={line.className}>
             <polyline className="chart-line" points={points.filter(point => point !== null).map(point => point.join(',')).join(' ')} />
-            {points.map((point, index) => point && <circle className="chart-point" cx={point[0]} cy={point[1]} r={4} key={index} />)}
+            {points.map((point, index) => point && <circle className="chart-point" cx={point[0]} cy={point[1]} r={index === selected ? 6 : 4} key={index} />)}
           </g>
         )
       })}
+      {selected !== null && <line className="chart-guide" x1={x(selected)} x2={x(selected)} y1={top} y2={height - bottom} />}
+      {labels.map((label, index) => (
+        <rect
+          className="chart-hit"
+          key={label}
+          x={x(index) - column / 2}
+          y={top}
+          width={column}
+          height={height - top - bottom}
+          onMouseEnter={() => setSelected(index)}
+          onClick={() => setSelected(index)}
+        />
+      ))}
+      {tip && (
+        <g className="chart-tooltip" pointerEvents="none">
+          <rect x={tipX} y={top + 4} width={tipWidth} height={tipHeight} rx={8} />
+          <text className="chart-tooltip-title" x={tipX + 14} y={top + 26}>{tip.title}</text>
+          {tip.rows.map((row, i) => (
+            <text className={row.className} key={row.text} x={tipX + 14} y={top + 50 + i * 22}>{row.text}</text>
+          ))}
+        </g>
+      )}
     </svg>
   )
 }
@@ -784,11 +825,39 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
       </div>
 
       <EnergyChart
+        key={`${period}-${date}`}
         labels={series.labels}
         lines={[
           { className: 'energy-pv', values: series.pv },
           { className: 'energy-load', values: series.load },
         ]}
+        tooltip={index => {
+          const pv = series.pv[index]
+          const load = series.load[index]
+          if ((pv === null || pv === undefined) && (load === null || load === undefined)) return null
+          if (period === 'day') {
+            const pvHour = hourDelta(series.pv, index)
+            const loadHour = hourDelta(series.load, index)
+            const next = String(index + 1).padStart(2, '0')
+            return {
+              title: `${series.labels[index]} – ${next}:00`,
+              rows: [
+                { className: 'tooltip-pv', text: `PV ${pvHour === null ? '--' : `+${formatNumber(pvHour, 2)}`} kWh  (day ${formatNumber(pv, 2)})` },
+                { className: 'tooltip-load', text: `Load ${loadHour === null ? '--' : `+${formatNumber(loadHour, 2)}`} kWh  (day ${formatNumber(load, 2)})` },
+              ],
+            }
+          }
+          const title = period === 'month'
+            ? `${MONTH_NAMES[Number(date.slice(5, 7)) - 1]} ${Number(series.labels[index])}, ${date.slice(0, 4)}`
+            : period === 'year' ? `${series.labels[index]} ${date.slice(0, 4)}` : series.labels[index]
+          return {
+            title,
+            rows: [
+              { className: 'tooltip-pv', text: `PV ${formatNumber(pv, 2)} kWh` },
+              { className: 'tooltip-load', text: `Load ${formatNumber(load, 2)} kWh` },
+            ],
+          }
+        }}
       />
       <div className="cell-legend energy-legend">
         <span><i className="energy-pv" />PV generation</span>

@@ -846,6 +846,39 @@ button {
   stroke: #37b7ff;
 }
 
+.chart-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.chart-guide {
+  stroke: rgba(243, 248, 251, 0.35);
+  stroke-dasharray: 4 4;
+}
+
+.chart-tooltip rect {
+  fill: rgba(6, 18, 30, 0.95);
+  stroke: rgba(85, 170, 220, 0.45);
+}
+
+.chart-tooltip text {
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', Consolas, monospace;
+  font-size: 14px;
+}
+
+.chart-tooltip-title {
+  fill: #f3f8fb;
+  font-weight: 700;
+}
+
+.tooltip-pv {
+  fill: #35eb86;
+}
+
+.tooltip-load {
+  fill: #37b7ff;
+}
+
 .energy-legend {
   justify-content: center;
   margin-top: 4px;
