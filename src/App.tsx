@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import mqtt from 'mqtt'
 import './App.css'
 
@@ -17,6 +17,8 @@ const WEATHER_REFRESH_MS = 5 * 60 * 1000
 const INVERTER_SENSOR_PREFIX = 'jk-bms/sensor/inverter_'
 // Retained JSON from the energy recorder on the Oracle VM (BRODPETCODE\energy-recorder)
 const ENERGY_HISTORY_TOPIC = 'jk-bms/history/energy'
+// One retained message per local day: 5-minute average power, e.g. jk-bms/history/power/2026-11-02
+const POWER_HISTORY_PREFIX = 'jk-bms/history/power/'
 const PACKS = ['LiFePO4-48V']
 const PACK_LABELS: Record<string, string> = {
   'LiFePO4-48V': 'LiFePO4 48V',
@@ -75,6 +77,13 @@ interface EnergyDay {
   hours: { pv: (number | null)[]; load: (number | null)[] }
   // Highest live PV power of the day and its local time (HH:MM)
   pvPeak?: { w: number; at: string }
+}
+
+// Average W per 5-minute slot (288 per day); battery is BMS power, + while charging
+interface PowerDay {
+  pv: (number | null)[]
+  load: (number | null)[]
+  battery: (number | null)[]
 }
 
 interface EnergyHistory {
@@ -702,6 +711,13 @@ function energySeries(history: EnergyHistory | null, period: EnergyPeriod, date:
   }
 }
 
+// Round axis step: 1, 2 or 5 times a power of ten
+function niceStep(raw: number) {
+  const power = 10 ** Math.floor(Math.log10(raw))
+  const scaled = raw / power
+  return (scaled <= 1 ? 1 : scaled <= 2 ? 2 : scaled <= 5 ? 5 : 10) * power
+}
+
 // kWh produced/used during slot `index` of a cumulative day series (counters reset at midnight)
 function hourDelta(values: (number | null)[], index: number) {
   const value = values[index]
@@ -723,11 +739,14 @@ function EnergyChart({ labels, lines, tooltip }: {
   const right = 18
   const top = 16
   const bottom = 40
-  const max = Math.max(1, ...lines.flatMap(line => line.values.filter((value): value is number => value !== null)))
-  const step = max <= 5 ? 1 : max <= 20 ? 5 : max <= 50 ? 10 : Math.ceil(max / 40) * 10
+  const values = lines.flatMap(line => line.values.filter((value): value is number => value !== null))
+  const max = Math.max(1, ...values)
+  const min = Math.min(0, ...values)
+  const step = niceStep((max - min) / 5)
   const upper = Math.ceil(max / step) * step
+  const lower = Math.floor(min / step) * step
   const x = (index: number) => left + (labels.length <= 1 ? (width - left - right) / 2 : (index * (width - left - right)) / (labels.length - 1))
-  const y = (value: number) => top + (1 - value / upper) * (height - top - bottom)
+  const y = (value: number) => top + ((upper - value) / (upper - lower)) * (height - top - bottom)
   const labelEvery = Math.ceil(labels.length / 8)
   const column = labels.length > 1 ? (width - left - right) / (labels.length - 1) : width - left - right
   const tip = selected !== null && selected < labels.length ? tooltip(selected) : null
@@ -737,10 +756,12 @@ function EnergyChart({ labels, lines, tooltip }: {
 
   return (
     <svg className="energy-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Energy history chart, hover or tap a point for details" onMouseLeave={() => setSelected(null)}>
-      {Array.from({ length: upper / step + 1 }, (_, i) => i * step).map(value => (
+      {Array.from({ length: Math.round((upper - lower) / step) + 1 }, (_, i) => lower + i * step).map(value => (
         <g key={value}>
           <line className="chart-grid" x1={left} x2={width - right} y1={y(value)} y2={y(value)} />
-          <text className="chart-axis" x={left - 10} y={y(value) + 4} textAnchor="end">{value}</text>
+          <text className="chart-axis" x={left - 10} y={y(value) + 4} textAnchor="end">
+            {Math.abs(value) >= 1000 ? `${value / 1000}k` : Number(value.toFixed(2))}
+          </text>
         </g>
       ))}
       {labels.map((label, index) => (index % labelEvery === 0 || index === labels.length - 1) && (
@@ -751,7 +772,9 @@ function EnergyChart({ labels, lines, tooltip }: {
         return (
           <g className={line.className} key={line.className}>
             <polyline className="chart-line" points={points.filter(point => point !== null).map(point => point.join(',')).join(' ')} />
-            {points.map((point, index) => point && <circle className="chart-point" cx={point[0]} cy={point[1]} r={index === selected ? 6 : 4} key={index} />)}
+            {points.map((point, index) => point && (labels.length <= 60 || index === selected) && (
+              <circle className="chart-point" cx={point[0]} cy={point[1]} r={index === selected ? 6 : 4} key={index} />
+            ))}
           </g>
         )
       })}
@@ -876,6 +899,89 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
   )
 }
 
+const POWER_SLOT_LABELS = Array.from({ length: 288 }, (_, i) =>
+  `${String(Math.floor(i / 12)).padStart(2, '0')}:${String((i % 12) * 5).padStart(2, '0')}`)
+
+function PowerPanel({ days, onShowDate }: { days: Record<string, PowerDay>; onShowDate: (date: string) => void }) {
+  const [date, setDate] = useState(() => localDateString())
+  const day = days[date]
+
+  useEffect(() => {
+    onShowDate(date)
+  }, [date, onShowDate])
+
+  const peak = (values: (number | null)[] | undefined, sign = 1) => {
+    const live = (values ?? []).filter((value): value is number => value !== null).map(value => value * sign)
+    return live.length ? Math.max(0, ...live) : undefined
+  }
+  const stats: [string, number | undefined][] = [
+    ['Peak PV', peak(day?.pv)],
+    ['Peak load', peak(day?.load)],
+    ['Max charge', peak(day?.battery)],
+    ['Max discharge', peak(day?.battery, -1)],
+  ]
+
+  return (
+    <section className="pack-panel energy-panel" aria-label="Power history">
+      <div className="panel-header">
+        <div>
+          <span className="eyebrow">History · 5-minute averages</span>
+          <h2>Power history</h2>
+          <small className="energy-note">Solar PV, house load and battery power (BMS: above zero charging, below zero discharging).</small>
+        </div>
+      </div>
+
+      <label className="energy-date">
+        Date
+        <input type="date" value={date} max={localDateString()} onChange={event => event.target.value && setDate(event.target.value)} />
+      </label>
+
+      <div className="energy-totals">
+        {stats.map(([label, value]) => (
+          <div key={label}>
+            <strong>{formatNumber(value)}</strong>
+            <span>{label} (W)</span>
+          </div>
+        ))}
+      </div>
+
+      <EnergyChart
+        key={date}
+        labels={POWER_SLOT_LABELS}
+        lines={[
+          { className: 'energy-pv', values: day?.pv ?? [] },
+          { className: 'energy-load', values: day?.load ?? [] },
+          { className: 'power-battery', values: day?.battery ?? [] },
+        ]}
+        tooltip={index => {
+          const [pv, load, battery] = [day?.pv[index], day?.load[index], day?.battery[index]]
+          if ([pv, load, battery].every(value => value === null || value === undefined)) return null
+          const watts = (value: number | null | undefined) => (value === null || value === undefined ? '--' : `${formatNumber(value)} W`)
+          return {
+            title: `${POWER_SLOT_LABELS[index]} – ${POWER_SLOT_LABELS[index + 1] ?? '24:00'}`,
+            rows: [
+              { className: 'tooltip-pv', text: `PV ${watts(pv)}` },
+              { className: 'tooltip-load', text: `Load ${watts(load)}` },
+              {
+                className: 'tooltip-battery',
+                text: `Battery ${battery !== null && battery !== undefined && battery > 0 ? '+' : ''}${watts(battery)}${battery ? (battery > 0 ? ' charging' : ' discharging') : ''}`,
+              },
+            ],
+          }
+        }}
+      />
+      <div className="cell-legend energy-legend">
+        <span><i className="energy-pv" />Solar PV</span>
+        <span><i className="energy-load" />House load</span>
+        <span><i className="power-battery" />Battery (BMS)</span>
+      </div>
+      <small className="energy-note centered">
+        {day ? 'Averaged every 5 minutes on the server. Tap or hover for exact values.' : 'No power history recorded for this day.'}
+      </small>
+    </section>
+  )
+}
+
 function InfoCard({ title, rows }: { title: string; rows: [string, string][] }) {
   return (
     <section className="side-panel info-card">
@@ -892,10 +998,12 @@ function InfoCard({ title, rows }: { title: string; rows: [string, string][] }) 
   )
 }
 
-function InverterView({ data, bms, history, now }: {
+function InverterView({ data, bms, history, powerDays, onShowPowerDate, now }: {
   data: InverterData | null
   bms: PackData | undefined
   history: EnergyHistory | null
+  powerDays: Record<string, PowerDay>
+  onShowPowerDate: (date: string) => void
   now: number
 }) {
   const age = data ? Math.floor((now - data.updatedAt) / 1000) : null
@@ -1013,6 +1121,7 @@ function InverterView({ data, bms, history, now }: {
       </div>
 
       <EnergyPanel history={history} />
+      <PowerPanel days={powerDays} onShowDate={onShowPowerDate} />
     </div>
   )
 }
@@ -1048,6 +1157,9 @@ export default function App() {
   const [weatherStatus, setWeatherStatus] = useState('Loading Cataingan weather')
   const [inverter, setInverter] = useState<InverterData | null>(null)
   const [energyHistory, setEnergyHistory] = useState<EnergyHistory | null>(null)
+  const [powerDays, setPowerDays] = useState<Record<string, PowerDay>>({})
+  // Power history days the page has asked for; (re)subscribed on every connect
+  const powerDatesRef = useRef(new Set<string>())
   const [view, setView] = useState<View>(viewFromHash)
 
   useEffect(() => {
@@ -1131,7 +1243,11 @@ export default function App() {
 
     client.on('connect', () => {
       setStatus('Connected')
-      client.subscribe(['jk-bms/sensor/#', ENERGY_HISTORY_TOPIC])
+      client.subscribe([
+        'jk-bms/sensor/#',
+        ENERGY_HISTORY_TOPIC,
+        ...[...powerDatesRef.current].map(date => `${POWER_HISTORY_PREFIX}${date}`),
+      ])
     })
 
     client.on('disconnect', () => setStatus('Disconnected'))
@@ -1139,6 +1255,16 @@ export default function App() {
     client.on('reconnect', () => setStatus('Reconnecting...'))
 
     client.on('message', (topic, payload) => {
+      if (topic.startsWith(POWER_HISTORY_PREFIX)) {
+        try {
+          const day: PowerDay = JSON.parse(payload.toString())
+          setPowerDays(prev => ({ ...prev, [topic.slice(POWER_HISTORY_PREFIX.length)]: day }))
+        } catch {
+          // Keep the last good copy if a message is malformed
+        }
+        return
+      }
+
       if (topic === ENERGY_HISTORY_TOPIC) {
         try {
           setEnergyHistory(JSON.parse(payload.toString()))
@@ -1177,6 +1303,11 @@ export default function App() {
     return () => { client.end() }
   }, [])
 
+  const showPowerDate = useCallback((date: string) => {
+    powerDatesRef.current.add(date)
+    if (clientRef.current?.connected) clientRef.current.subscribe(`${POWER_HISTORY_PREFIX}${date}`)
+  }, [])
+
   const displayPacks = packs
   const livePacks = Object.values(displayPacks)
   const aggregatePack = buildAggregatePack(livePacks)
@@ -1204,7 +1335,14 @@ export default function App() {
       <HeaderBar status={connectionLabel} tone={connectionTone} now={now} view={view} />
 
       {view === 'inverter' ? (
-        <InverterView data={inverter} bms={aggregatePack} history={energyHistory} now={now} />
+        <InverterView
+          data={inverter}
+          bms={aggregatePack}
+          history={energyHistory}
+          powerDays={powerDays}
+          onShowPowerDate={showPowerDate}
+          now={now}
+        />
       ) : (
       <>
       <BatteryDeck averageVoltage={averageVoltage} totalSoc={totalSoc} totalCurrent={totalCurrent} totalPower={totalPower} remainingAh={totalCapacity} weather={weather} weatherStatus={weatherStatus} />

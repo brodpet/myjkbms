@@ -892,6 +892,18 @@ button {
   background: #37b7ff;
 }
 
+.power-battery {
+  stroke: #ffb020;
+}
+
+.tooltip-battery {
+  fill: #ffb020;
+}
+
+.energy-legend i.power-battery {
+  background: #ffb020;
+}
+
 .energy-legend i.energy-purchased {
   background: #ffcd4a;
 }
