@@ -727,10 +727,12 @@ function hourDelta(values: (number | null)[], index: number) {
   return previous === null || previous === undefined ? null : Math.max(0, value - previous)
 }
 
-function EnergyChart({ labels, lines, tooltip }: {
+function EnergyChart({ labels, lines, tooltip, minValue = 0 }: {
   labels: string[]
   lines: { className: string; values: (number | null)[] }[]
   tooltip: (index: number) => { title: string; rows: { className: string; text: string }[] } | null
+  // The axis always reaches down to at least this value, even before any data goes that low
+  minValue?: number
 }) {
   const [selected, setSelected] = useState<number | null>(null)
   const width = 900
@@ -741,7 +743,7 @@ function EnergyChart({ labels, lines, tooltip }: {
   const bottom = 40
   const values = lines.flatMap(line => line.values.filter((value): value is number => value !== null))
   const max = Math.max(1, ...values)
-  const min = Math.min(0, ...values)
+  const min = Math.min(minValue, ...values)
   const step = niceStep((max - min) / 5)
   const upper = Math.ceil(max / step) * step
   const lower = Math.floor(min / step) * step
@@ -758,7 +760,7 @@ function EnergyChart({ labels, lines, tooltip }: {
     <svg className="energy-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Energy history chart, hover or tap a point for details" onMouseLeave={() => setSelected(null)}>
       {Array.from({ length: Math.round((upper - lower) / step) + 1 }, (_, i) => lower + i * step).map(value => (
         <g key={value}>
-          <line className="chart-grid" x1={left} x2={width - right} y1={y(value)} y2={y(value)} />
+          <line className={value === 0 && lower < 0 ? 'chart-zero' : 'chart-grid'} x1={left} x2={width - right} y1={y(value)} y2={y(value)} />
           <text className="chart-axis" x={left - 10} y={y(value) + 4} textAnchor="end">
             {Math.abs(value) >= 1000 ? `${value / 1000}k` : Number(value.toFixed(2))}
           </text>
@@ -948,6 +950,7 @@ function PowerPanel({ days, onShowDate }: { days: Record<string, PowerDay>; onSh
       <EnergyChart
         key={date}
         labels={POWER_SLOT_LABELS}
+        minValue={-1000}
         lines={[
           { className: 'energy-pv', values: day?.pv ?? [] },
           { className: 'energy-load', values: day?.load ?? [] },

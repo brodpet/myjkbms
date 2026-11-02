@@ -846,6 +846,11 @@ button {
   stroke: #37b7ff;
 }
 
+.chart-zero {
+  stroke: rgba(243, 248, 251, 0.45);
+  stroke-width: 1.5;
+}
+
 .chart-hit {
   fill: transparent;
   cursor: pointer;
