@@ -73,6 +73,8 @@ interface EnergyDay {
   load: number
   // Cumulative kWh at the end of each local hour, null before recording started
   hours: { pv: (number | null)[]; load: (number | null)[] }
+  // Highest live PV power of the day and its local time (HH:MM)
+  pvPeak?: { w: number; at: string }
 }
 
 interface EnergyHistory {
@@ -903,6 +905,7 @@ function InverterView({ data, bms, history, now }: {
   const soc = Math.max(0, Math.min(100, bms?.soc ?? data?.battery_soc ?? 0))
   // The BMS measures the pack itself; the inverter's battery reading is only a fallback
   const batteryWatts = bms?.power ?? data?.battery_power
+  const pvPeakToday = history?.days[localDateString()]?.pvPeak
   const lines = [
     { kind: 'pv' as const, d: 'M118 112 H278 Q290 112 290 124 V170', watts: data?.pv_power },
     { kind: 'battery' as const, d: 'M118 360 H278 Q290 360 290 348 V270', watts: batteryWatts },
@@ -981,6 +984,7 @@ function InverterView({ data, bms, history, now }: {
           ['PV2 current', `${formatNumber(data?.pv2_current, 2)}A`],
           ['PV2 power', `${formatNumber(data?.pv2_power)}W`],
           ['Total PV power', `${formatNumber(data?.pv_power)}W`],
+          ['Peak PV today', pvPeakToday ? `${formatNumber(pvPeakToday.w)}W at ${pvPeakToday.at}` : '--'],
         ]} />
         <InfoCard title="Battery information" rows={[
           ['Battery power (BMS)', bms ? `${formatNumber(bms.power)}W` : '--'],
