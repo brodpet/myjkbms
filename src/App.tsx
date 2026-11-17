@@ -806,10 +806,43 @@ function EnergyChart({ labels, lines, tooltip, minValue = 0 }: {
   )
 }
 
+// Electricity price used for the savings estimate; kept per browser since the site has no write access
+const RATE_STORAGE_KEY = 'myjkbms.ratePerKwh'
+const DEFAULT_RATE_PER_KWH = 10
+
+function readRate() {
+  try {
+    const stored = Number(localStorage.getItem(RATE_STORAGE_KEY))
+    return stored > 0 ? stored : DEFAULT_RATE_PER_KWH
+  } catch {
+    return DEFAULT_RATE_PER_KWH
+  }
+}
+
+function formatPeso(value: number | undefined) {
+  if (value === undefined || Number.isNaN(value)) return '₱--'
+  return `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 function EnergyPanel({ history }: { history: EnergyHistory | null }) {
   const [period, setPeriod] = useState<EnergyPeriod>('day')
   const [date, setDate] = useState(() => localDateString())
+  const [rate, setRate] = useState(readRate)
   const series = energySeries(history, period, date)
+  const periodSavings = series.totals ? series.totals.pv * rate : undefined
+  const lifetimePv = history?.counters.pvTotal
+  const periodLabel = { day: 'this day', month: 'this month', year: 'this year', total: 'all time' }[period]
+
+  const changeRate = (value: string) => {
+    const next = Number(value)
+    if (!(next > 0)) return
+    setRate(next)
+    try {
+      localStorage.setItem(RATE_STORAGE_KEY, String(next))
+    } catch {
+      // Private browsing can block storage; the rate still applies for this visit
+    }
+  }
   const firstDay = history ? Object.keys(history.days).sort()[0] : undefined
   const totals: [string, number | undefined][] = [
     ['PV generation', series.totals?.pv],
@@ -849,6 +882,33 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
             <span>{label} (kWh)</span>
           </div>
         ))}
+      </div>
+
+      <div className="savings-strip">
+        <div>
+          <span>Savings {periodLabel}</span>
+          <strong>{formatPeso(periodSavings)}</strong>
+        </div>
+        <div>
+          <span>Lifetime savings</span>
+          <strong>{formatPeso(lifetimePv !== undefined ? lifetimePv * rate : undefined)}</strong>
+        </div>
+        <label>
+          <span>Electricity rate</span>
+          <span className="rate-input">
+            ₱
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0.01"
+              step="0.01"
+              defaultValue={rate}
+              onChange={event => changeRate(event.target.value)}
+              aria-label="Electricity rate in pesos per kWh"
+            />
+            / kWh
+          </span>
+        </label>
       </div>
 
       <EnergyChart

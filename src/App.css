@@ -809,6 +809,55 @@ button {
   font-size: 0.8rem;
 }
 
+.savings-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 6px 0 4px;
+  padding: 12px 16px;
+  border: 1px solid rgba(53, 235, 134, 0.25);
+  border-radius: 8px;
+  background: rgba(53, 235, 134, 0.06);
+  text-align: center;
+}
+
+.savings-strip span {
+  display: block;
+  color: #a7b6c7;
+  font-size: 0.8rem;
+}
+
+.savings-strip strong {
+  display: block;
+  margin-top: 4px;
+  color: #35eb86;
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', Consolas, monospace;
+  font-size: clamp(1.2rem, 2.4vw, 1.7rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.savings-strip .rate-input {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+  color: #f3f8fb;
+  font-size: 0.95rem;
+}
+
+.rate-input input {
+  width: 5.5em;
+  padding: 5px 8px;
+  border: 1px solid rgba(85, 170, 220, 0.3);
+  border-radius: 6px;
+  color: #f3f8fb;
+  background: #0d2032;
+  color-scheme: dark;
+  font: inherit;
+  text-align: right;
+}
+
 .energy-chart {
   display: block;
   width: 100%;
@@ -1295,6 +1344,10 @@ button:focus-visible {
 
   .inverter-panel {
     padding: 14px;
+  }
+
+  .savings-strip {
+    grid-template-columns: 1fr;
   }
 
   .metric-tile {
