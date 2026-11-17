@@ -665,9 +665,10 @@ function sumDays(history: EnergyHistory, prefix: string) {
     : null
 }
 
+// Month/year/total add up the recorded days only (from 2026-10-24), not the inverter's own counters,
+// which also hold installation and factory-test energy
 function energySeries(history: EnergyHistory | null, period: EnergyPeriod, date: string): EnergySeries {
   const empty = { pv: [], load: [], totals: null }
-  const today = localDateString()
   if (period === 'day') {
     const day = history?.days[date]
     return {
@@ -679,27 +680,24 @@ function energySeries(history: EnergyHistory | null, period: EnergyPeriod, date:
   }
   if (!history) return { labels: [], ...empty }
 
-  const counters = history.counters
   if (period === 'month') {
     const [year, month] = date.split('-').map(Number)
     const daysInMonth = new Date(year, month, 0).getDate()
     const keys = Array.from({ length: daysInMonth }, (_, i) => `${date.slice(0, 7)}-${String(i + 1).padStart(2, '0')}`)
-    const current = date.slice(0, 7) === today.slice(0, 7) && counters.pvMonth !== undefined && counters.loadMonth !== undefined
     return {
       labels: keys.map(key => key.slice(8)),
       pv: keys.map(key => history.days[key]?.pv ?? null),
       load: keys.map(key => history.days[key]?.load ?? null),
-      totals: current ? { pv: counters.pvMonth!, load: counters.loadMonth! } : sumDays(history, date.slice(0, 7)),
+      totals: sumDays(history, date.slice(0, 7)),
     }
   }
   if (period === 'year') {
     const months = MONTH_NAMES.map((_, i) => `${date.slice(0, 4)}-${String(i + 1).padStart(2, '0')}`)
-    const current = date.slice(0, 4) === today.slice(0, 4) && counters.pvYear !== undefined && counters.loadYear !== undefined
     return {
       labels: MONTH_NAMES,
       pv: months.map(month => sumDays(history, month)?.pv ?? null),
       load: months.map(month => sumDays(history, month)?.load ?? null),
-      totals: current ? { pv: counters.pvYear!, load: counters.loadYear! } : sumDays(history, date.slice(0, 4)),
+      totals: sumDays(history, date.slice(0, 4)),
     }
   }
   const years = [...new Set(Object.keys(history.days).map(key => key.slice(0, 4)))].sort()
@@ -707,7 +705,7 @@ function energySeries(history: EnergyHistory | null, period: EnergyPeriod, date:
     labels: years,
     pv: years.map(year => sumDays(history, year)?.pv ?? null),
     load: years.map(year => sumDays(history, year)?.load ?? null),
-    totals: counters.pvTotal !== undefined && counters.loadTotal !== undefined ? { pv: counters.pvTotal, load: counters.loadTotal } : sumDays(history, ''),
+    totals: sumDays(history, ''),
   }
 }
 
@@ -831,7 +829,7 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
   const series = energySeries(history, period, date)
   // Savings = house consumption that did not have to be bought (off-grid, so all of it)
   const periodSavings = series.totals ? series.totals.load * rate : undefined
-  const lifetimeLoad = history?.counters.loadTotal
+  const lifetimeLoad = history ? sumDays(history, '')?.load : undefined
   const periodLabel = { day: 'this day', month: 'this month', year: 'this year', total: 'all time' }[period]
 
   const changeRate = (value: string) => {
@@ -955,7 +953,7 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
       </div>
       <small className="energy-note centered">
         {history
-          ? `Recorded every hour on the server since ${firstDay ?? 'today'}. Current month, year and total come from the inverter's own counters.`
+          ? `Recorded every hour on the server. Month, year, total and savings count from ${firstDay ?? 'today'} onwards.`
           : 'Waiting for energy history from the server.'}
       </small>
     </section>
