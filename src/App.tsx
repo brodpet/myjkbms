@@ -829,8 +829,9 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
   const [date, setDate] = useState(() => localDateString())
   const [rate, setRate] = useState(readRate)
   const series = energySeries(history, period, date)
-  const periodSavings = series.totals ? series.totals.pv * rate : undefined
-  const lifetimePv = history?.counters.pvTotal
+  // Savings = house consumption that did not have to be bought (off-grid, so all of it)
+  const periodSavings = series.totals ? series.totals.load * rate : undefined
+  const lifetimeLoad = history?.counters.loadTotal
   const periodLabel = { day: 'this day', month: 'this month', year: 'this year', total: 'all time' }[period]
 
   const changeRate = (value: string) => {
@@ -891,7 +892,7 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
         </div>
         <div>
           <span>Lifetime savings</span>
-          <strong>{formatPeso(lifetimePv !== undefined ? lifetimePv * rate : undefined)}</strong>
+          <strong>{formatPeso(lifetimeLoad !== undefined ? lifetimeLoad * rate : undefined)}</strong>
         </div>
         <label>
           <span>Electricity rate</span>
