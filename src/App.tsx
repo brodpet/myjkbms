@@ -1147,11 +1147,12 @@ function InverterView({ data, bms, history, powerDays, onShowPowerDate, now }: {
           ['Last update', age !== null ? `${age}s ago` : '--'],
         ]} />
         <InfoCard title="PV information" rows={[
+          // Rows fill two columns left to right: PV1 on the left, PV2 on the right
           ['PV1 voltage', `${formatNumber(data?.pv1_voltage, 1)}V`],
-          ['PV1 current', `${formatNumber(data?.pv1_current, 2)}A`],
-          ['PV1 power', `${formatNumber(data?.pv1_power)}W`],
           ['PV2 voltage', `${formatNumber(data?.pv2_voltage, 1)}V`],
+          ['PV1 current', `${formatNumber(data?.pv1_current, 2)}A`],
           ['PV2 current', `${formatNumber(data?.pv2_current, 2)}A`],
+          ['PV1 power', `${formatNumber(data?.pv1_power)}W`],
           ['PV2 power', `${formatNumber(data?.pv2_power)}W`],
           ['Total PV power', `${formatNumber(data?.pv_power)}W`],
           ['Peak PV today', pvPeakToday ? `${formatNumber(pvPeakToday.w)}W at ${pvPeakToday.at}` : '--'],
