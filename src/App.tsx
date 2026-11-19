@@ -725,50 +725,68 @@ function hourDelta(values: (number | null)[], index: number) {
   return previous === null || previous === undefined ? null : Math.max(0, value - previous)
 }
 
-function EnergyChart({ labels, lines, tooltip, minValue = 0 }: {
+type ChartLine = { className: string; values: (number | null)[]; rightAxis?: boolean }
+
+const liveValues = (lines: ChartLine[]) =>
+  lines.flatMap(line => line.values.filter((value): value is number => value !== null))
+
+function EnergyChart({ labels, lines, tooltip, minValue = 0, rightAxisLabel }: {
   labels: string[]
-  lines: { className: string; values: (number | null)[] }[]
+  lines: ChartLine[]
   tooltip: (index: number) => { title: string; rows: { className: string; text: string }[] } | null
   // The axis always reaches down to at least this value, even before any data goes that low
   minValue?: number
+  // Formats the right-hand axis used by lines with rightAxis (a different unit, e.g. pesos); it shares the
+  // left axis's gridlines and starts at zero
+  rightAxisLabel?: (value: number) => string
 }) {
   const [selected, setSelected] = useState<number | null>(null)
   const width = 900
   const height = 300
   const left = 48
-  const right = 18
+  const right = rightAxisLabel ? 64 : 18
   const top = 16
   const bottom = 40
-  const values = lines.flatMap(line => line.values.filter((value): value is number => value !== null))
+  const values = liveValues(lines.filter(line => !line.rightAxis))
   const max = Math.max(1, ...values)
   const min = Math.min(minValue, ...values)
   const step = niceStep((max - min) / 5)
   const upper = Math.ceil(max / step) * step
   const lower = Math.floor(min / step) * step
+  const gridCount = Math.round((upper - lower) / step)
+  const rightStep = niceStep(Math.max(1, ...liveValues(lines.filter(line => line.rightAxis))) / gridCount)
+  const rightUpper = rightStep * gridCount
   const x = (index: number) => left + (labels.length <= 1 ? (width - left - right) / 2 : (index * (width - left - right)) / (labels.length - 1))
   const y = (value: number) => top + ((upper - value) / (upper - lower)) * (height - top - bottom)
+  const yRight = (value: number) => top + (1 - value / rightUpper) * (height - top - bottom)
   const labelEvery = Math.ceil(labels.length / 8)
   const column = labels.length > 1 ? (width - left - right) / (labels.length - 1) : width - left - right
   const tip = selected !== null && selected < labels.length ? tooltip(selected) : null
-  const tipWidth = 250
+  const tipWidth = 300
   const tipHeight = 30 + (tip?.rows.length ?? 0) * 22
   const tipX = selected !== null && x(selected) + 14 + tipWidth > width - right ? x(selected) - 14 - tipWidth : x(selected ?? 0) + 14
 
   return (
     <svg className="energy-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Energy history chart, hover or tap a point for details" onMouseLeave={() => setSelected(null)}>
-      {Array.from({ length: Math.round((upper - lower) / step) + 1 }, (_, i) => lower + i * step).map(value => (
+      {Array.from({ length: gridCount + 1 }, (_, i) => lower + i * step).map((value, i) => (
         <g key={value}>
           <line className={value === 0 && lower < 0 ? 'chart-zero' : 'chart-grid'} x1={left} x2={width - right} y1={y(value)} y2={y(value)} />
           <text className="chart-axis" x={left - 10} y={y(value) + 4} textAnchor="end">
             {Math.abs(value) >= 1000 ? `${value / 1000}k` : Number(value.toFixed(2))}
           </text>
+          {rightAxisLabel && lower === 0 && (
+            <text className="chart-axis chart-axis-right" x={width - right + 10} y={y(value) + 4} textAnchor="start">
+              {rightAxisLabel(i * rightStep)}
+            </text>
+          )}
         </g>
       ))}
       {labels.map((label, index) => (index % labelEvery === 0 || index === labels.length - 1) && (
         <text className="chart-axis" key={label} x={x(index)} y={height - 14} textAnchor="middle">{label}</text>
       ))}
       {lines.map(line => {
-        const points = line.values.map((value, index) => (value === null ? null : [x(index), y(value)] as const))
+        const scale = line.rightAxis ? yRight : y
+        const points = line.values.map((value, index) => (value === null ? null : [x(index), scale(value)] as const))
         return (
           <g className={line.className} key={line.className}>
             <polyline className="chart-line" points={points.filter(point => point !== null).map(point => point.join(',')).join(' ')} />
@@ -830,6 +848,7 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
   // Savings = house consumption that did not have to be bought (off-grid, so all of it)
   const periodSavings = series.totals ? series.totals.load * rate : undefined
   const lifetimeLoad = history ? sumDays(history, '')?.load : undefined
+  const savingsValues = series.load.map(load => (load === null || load === undefined ? null : load * rate))
   const periodLabel = { day: 'this day', month: 'this month', year: 'this year', total: 'all time' }[period]
 
   const changeRate = (value: string) => {
@@ -916,7 +935,9 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
         lines={[
           { className: 'energy-pv', values: series.pv },
           { className: 'energy-load', values: series.load },
+          { className: 'energy-savings', values: savingsValues, rightAxis: true },
         ]}
+        rightAxisLabel={value => (value >= 1000 ? `₱${value / 1000}k` : `₱${value}`)}
         tooltip={index => {
           const pv = series.pv[index]
           const load = series.load[index]
@@ -930,6 +951,10 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
               rows: [
                 { className: 'tooltip-pv', text: `PV ${pvHour === null ? '--' : `+${formatNumber(pvHour, 2)}`} kWh  (day ${formatNumber(pv, 2)})` },
                 { className: 'tooltip-load', text: `Load ${loadHour === null ? '--' : `+${formatNumber(loadHour, 2)}`} kWh  (day ${formatNumber(load, 2)})` },
+                {
+                  className: 'tooltip-savings',
+                  text: `Saved ${loadHour === null ? '--' : `+${formatPeso(loadHour * rate)}`}  (day ${formatPeso(savingsValues[index] ?? undefined)})`,
+                },
               ],
             }
           }
@@ -941,6 +966,7 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
             rows: [
               { className: 'tooltip-pv', text: `PV ${formatNumber(pv, 2)} kWh` },
               { className: 'tooltip-load', text: `Load ${formatNumber(load, 2)} kWh` },
+              { className: 'tooltip-savings', text: `Saved ${formatPeso(savingsValues[index] ?? undefined)}` },
             ],
           }
         }}
@@ -948,6 +974,7 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
       <div className="cell-legend energy-legend">
         <span><i className="energy-pv" />PV generation</span>
         <span><i className="energy-load" />Load consumption</span>
+        <span><i className="energy-savings" />Savings (₱, right axis)</span>
         <span><i className="energy-purchased" />Electricity purchased</span>
         <span><i className="energy-sold" />Electricity sold</span>
       </div>

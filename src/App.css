@@ -933,6 +933,19 @@ button {
   fill: #37b7ff;
 }
 
+.energy-savings {
+  stroke: #ff9f43;
+}
+
+.tooltip-savings,
+.chart-axis-right {
+  fill: #ff9f43;
+}
+
+.energy-legend i.energy-savings {
+  background: #ff9f43;
+}
+
 .energy-legend {
   justify-content: center;
   margin-top: 4px;
