@@ -849,7 +849,9 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
   const periodSavings = series.totals ? series.totals.load * rate : undefined
   const lifetimeLoad = history ? sumDays(history, '')?.load : undefined
   const savingsValues = series.load.map(load => (load === null || load === undefined ? null : load * rate))
-  const periodLabel = { day: 'this day', month: 'this month', year: 'this year', total: 'all time' }[period]
+  // Each tab shows its own savings once: the period's for Day/Month/Year, lifetime for Total
+  const savingsLabel = { day: 'Savings this day', month: 'Savings this month', year: 'Savings this year', total: 'Lifetime savings' }[period]
+  const savingsAmount = period === 'total' ? (lifetimeLoad !== undefined ? lifetimeLoad * rate : undefined) : periodSavings
 
   const changeRate = (value: string) => {
     const next = Number(value)
@@ -904,12 +906,8 @@ function EnergyPanel({ history }: { history: EnergyHistory | null }) {
 
       <div className="savings-strip">
         <div>
-          <span>Savings {periodLabel}</span>
-          <strong>{formatPeso(periodSavings)}</strong>
-        </div>
-        <div>
-          <span>Lifetime savings</span>
-          <strong>{formatPeso(lifetimeLoad !== undefined ? lifetimeLoad * rate : undefined)}</strong>
+          <span>{savingsLabel}</span>
+          <strong>{formatPeso(savingsAmount)}</strong>
         </div>
         <label>
           <span>Electricity rate</span>
